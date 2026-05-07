@@ -106,7 +106,7 @@ function isWorkflowState(value: unknown): value is WorkflowState {
 function applyMutation(store: WorkflowStoreState, mutation: Mutation): Result<unknown> {
   switch (mutation.kind) {
     case 'addNode':
-      return store.addNode(mutation.input);
+      return store.addNode(mutation.input, mutation.id);
     case 'updateNode':
       return store.updateNode(mutation.id, mutation.patch);
     case 'moveNode':

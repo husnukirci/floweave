@@ -1,21 +1,35 @@
 // LLM tool executor — translates an Anthropic tool_use block into one
-// or more workflow store actions and produces a tool_result block.
+// or more workflow store Mutations and produces a tool_result block.
 //
 // Inputs are re-validated here even though Claude's API enforces the
 // tool input_schema at the model layer — the LLM occasionally produces
 // malformed output, and clearer per-tool error messages help it recover
 // within the agent loop's iteration cap.
 //
-// Per-tool calls bypass applyMutations and call store actions directly.
-// The agent loop in commit 5 batches across multiple tool_use blocks
-// per turn via applyMutations to satisfy CLAUDE.md §4. The unit
-// executor runs one tool at a time, so direct action calls are correct
-// at this layer.
+// Two entry points:
+//   - buildToolMutations: pure (only state reads) — returns the mutations
+//     a single tool_use should perform plus the human-readable success
+//     message. The agent loop collects these across all tool_uses in a
+//     turn and applies them as ONE applyMutations() call (CLAUDE.md §4).
+//   - applyToolCall: convenience wrapper that builds and applies a single
+//     tool_use's mutations through applyMutations and returns a
+//     tool_result. Used by tests and callers that don't need batching.
+//
+// Pre-generating IDs upfront (via nanoid) lets the success messages
+// reference newly-created node IDs even when they're applied inside a
+// batched applyMutations call where per-mutation results aren't surfaced.
 
+import { nanoid } from 'nanoid';
 import type { StoreApi } from 'zustand';
 
 import type { WorkflowStoreState } from '@/state/workflow/storeState';
-import type { AddNodeInput, CustomNodeType, NodeData, Variable } from '@/state/workflow/types';
+import type {
+  AddNodeInput,
+  CustomNodeType,
+  Mutation,
+  NodeData,
+  Variable,
+} from '@/state/workflow/types';
 
 import type { ToolName, ToolResultBlock, ToolUseBlock } from './tools';
 
@@ -33,6 +47,10 @@ const VALID_CUSTOM_TYPES = [
 ] as const satisfies readonly CustomNodeType[];
 
 type LocalResult<T> = { ok: true; value: T } | { ok: false; error: string };
+
+export type ToolBuildResult =
+  | { ok: true; mutations: Mutation[]; successContent: string }
+  | { ok: false; errorContent: string };
 
 function ok(toolUseId: string, content: string): ToolResultBlock {
   return { type: 'tool_result', tool_use_id: toolUseId, content };
@@ -82,48 +100,92 @@ function validateData(value: unknown): LocalResult<Partial<NodeData>> {
   return { ok: true, value: out };
 }
 
+// Drill down through MUTATION_FAILED errors to surface the underlying
+// validator's reason code (e.g. 'duplicate-edge', 'self-loop').
+function extractReason(applyError: { details?: Record<string, unknown> }): string | undefined {
+  const cause = applyError.details?.cause;
+  if (!isObject(cause)) return undefined;
+  const causeDetails = cause.details;
+  if (!isObject(causeDetails)) return undefined;
+  const reason = causeDetails.reason;
+  return typeof reason === 'string' ? reason : undefined;
+}
+
+export function buildToolMutations(
+  toolCall: ToolUseBlock,
+  store: StoreApi<WorkflowStoreState>,
+): ToolBuildResult {
+  const name = toolCall.name as ToolName;
+  switch (name) {
+    case 'add_node':
+      return buildAddNode(toolCall.input);
+    case 'connect_nodes':
+      return buildConnectNodes(toolCall.input);
+    case 'update_node':
+      return buildUpdateNode(toolCall.input);
+    case 'remove_node':
+      return buildRemoveNode(toolCall.input, store);
+    case 'insert_between':
+      return buildInsertBetween(toolCall.input, store);
+    default:
+      return { ok: false, errorContent: `Unknown tool name: '${toolCall.name}'` };
+  }
+}
+
 export function applyToolCall(
   toolCall: ToolUseBlock,
   store: StoreApi<WorkflowStoreState>,
 ): ToolResultBlock {
-  const name = toolCall.name as ToolName;
+  const built = buildToolMutations(toolCall, store);
+  if (!built.ok) return err(toolCall.id, built.errorContent);
+  if (built.mutations.length === 0) return ok(toolCall.id, built.successContent);
+
+  const result = store.getState().applyMutations(built.mutations);
+  if (!result.ok) {
+    const reason = extractReason(result.error);
+    return err(
+      toolCall.id,
+      reason
+        ? `${labelForName(toolCall.name)}: ${reason}`
+        : `${labelForName(toolCall.name)}: ${result.error.message}`,
+    );
+  }
+  return ok(toolCall.id, built.successContent);
+}
+
+function labelForName(name: string): string {
   switch (name) {
     case 'add_node':
-      return applyAddNode(toolCall, store);
+      return 'Cannot add node';
     case 'connect_nodes':
-      return applyConnectNodes(toolCall, store);
+      return 'Cannot connect nodes';
     case 'update_node':
-      return applyUpdateNode(toolCall, store);
+      return 'Cannot update node';
     case 'remove_node':
-      return applyRemoveNode(toolCall, store);
+      return 'Cannot remove node';
     case 'insert_between':
-      return applyInsertBetween(toolCall, store);
+      return 'Cannot insert between';
     default:
-      return err(toolCall.id, `Unknown tool name: '${toolCall.name}'`);
+      return 'Tool failed';
   }
 }
 
-function applyAddNode(
-  toolCall: ToolUseBlock,
-  store: StoreApi<WorkflowStoreState>,
-): ToolResultBlock {
-  const built = buildAddNodeInput(toolCall.input);
-  if (!built.ok) return err(toolCall.id, built.error);
+function buildAddNode(input: unknown): ToolBuildResult {
+  const built = parseAddNodeInput(input);
+  if (!built.ok) return { ok: false, errorContent: built.error };
 
-  const result = store.getState().addNode(built.value);
-  if (!result.ok) {
-    return err(toolCall.id, `Cannot add node: ${result.error.code} ${result.error.message}`);
-  }
-  return ok(
-    toolCall.id,
-    `Added ${result.value.kind} node '${result.value.id}' at (${String(
-      result.value.position.x,
-    )}, ${String(result.value.position.y)}).`,
-  );
+  const id = nanoid();
+  const successContent = `Added ${built.value.kind} node '${id}' at (${String(built.value.position.x)}, ${String(built.value.position.y)}).`;
+  return {
+    ok: true,
+    mutations: [{ kind: 'addNode', input: built.value, id }],
+    successContent,
+  };
 }
 
-function buildAddNodeInput(input: unknown): LocalResult<AddNodeInput> {
-  if (!isObject(input)) return { ok: false, error: 'tool input must be an object' };
+function parseAddNodeInput(input: unknown): LocalResult<AddNodeInput> {
+  if (!isObject(input))
+    return { ok: false, error: 'Cannot add node: tool input must be an object' };
   const { kind, customType, position, data } = input;
 
   if (typeof kind !== 'string' || !(VALID_KINDS as readonly string[]).includes(kind)) {
@@ -169,128 +231,131 @@ function buildAddNodeInput(input: unknown): LocalResult<AddNodeInput> {
   };
 }
 
-function applyConnectNodes(
-  toolCall: ToolUseBlock,
-  store: StoreApi<WorkflowStoreState>,
-): ToolResultBlock {
-  if (!isObject(toolCall.input)) {
-    return err(toolCall.id, 'Cannot connect nodes: input must be an object');
+function buildConnectNodes(input: unknown): ToolBuildResult {
+  if (!isObject(input)) {
+    return { ok: false, errorContent: 'Cannot connect nodes: input must be an object' };
   }
-  const { source, target } = toolCall.input;
+  const { source, target } = input;
   if (typeof source !== 'string' || typeof target !== 'string') {
-    return err(toolCall.id, "Cannot connect nodes: 'source' and 'target' must be strings");
+    return {
+      ok: false,
+      errorContent: "Cannot connect nodes: 'source' and 'target' must be strings",
+    };
   }
-  const result = store.getState().connectNodes({ source, target });
-  if (!result.ok) {
-    const reason = result.error.details?.reason;
-    return err(
-      toolCall.id,
-      `Cannot connect '${source}' → '${target}': ${typeof reason === 'string' ? reason : result.error.code}`,
-    );
-  }
-  return ok(toolCall.id, `Connected '${source}' → '${target}' (edge id: '${result.value.id}').`);
+  return {
+    ok: true,
+    mutations: [{ kind: 'connectNodes', input: { source, target } }],
+    successContent: `Connected '${source}' → '${target}'.`,
+  };
 }
 
-function applyUpdateNode(
-  toolCall: ToolUseBlock,
-  store: StoreApi<WorkflowStoreState>,
-): ToolResultBlock {
-  if (!isObject(toolCall.input)) {
-    return err(toolCall.id, 'Cannot update node: input must be an object');
+function buildUpdateNode(input: unknown): ToolBuildResult {
+  if (!isObject(input)) {
+    return { ok: false, errorContent: 'Cannot update node: input must be an object' };
   }
-  const { id, data, position } = toolCall.input;
+  const { id, data, position } = input;
   if (typeof id !== 'string') {
-    return err(toolCall.id, "Cannot update node: 'id' must be a string");
+    return { ok: false, errorContent: "Cannot update node: 'id' must be a string" };
   }
   const dataValidation = validateData(data);
-  if (!dataValidation.ok) return err(toolCall.id, `Cannot update node: ${dataValidation.error}`);
+  if (!dataValidation.ok) {
+    return { ok: false, errorContent: `Cannot update node: ${dataValidation.error}` };
+  }
   if (position !== undefined && !isPosition(position)) {
-    return err(toolCall.id, "Cannot update node: 'position' must be { x: number, y: number }");
+    return {
+      ok: false,
+      errorContent: "Cannot update node: 'position' must be { x: number, y: number }",
+    };
   }
-  const result = store.getState().updateNode(id, {
-    data: dataValidation.value,
-    position,
-  });
-  if (!result.ok) {
-    return err(
-      toolCall.id,
-      `Cannot update node '${id}': ${result.error.code === 'NODE_NOT_FOUND' ? 'not found' : result.error.message}`,
-    );
-  }
-  return ok(toolCall.id, `Updated node '${id}'.`);
+  return {
+    ok: true,
+    mutations: [
+      {
+        kind: 'updateNode',
+        id,
+        patch: {
+          data: dataValidation.value,
+          position,
+        },
+      },
+    ],
+    successContent: `Updated node '${id}'.`,
+  };
 }
 
-function applyRemoveNode(
-  toolCall: ToolUseBlock,
-  store: StoreApi<WorkflowStoreState>,
-): ToolResultBlock {
-  if (!isObject(toolCall.input)) {
-    return err(toolCall.id, 'Cannot remove node: input must be an object');
+function buildRemoveNode(input: unknown, store: StoreApi<WorkflowStoreState>): ToolBuildResult {
+  if (!isObject(input)) {
+    return { ok: false, errorContent: 'Cannot remove node: input must be an object' };
   }
-  const { id } = toolCall.input;
+  const { id } = input;
   if (typeof id !== 'string') {
-    return err(toolCall.id, "Cannot remove node: 'id' must be a string");
+    return { ok: false, errorContent: "Cannot remove node: 'id' must be a string" };
   }
-  const result = store.getState().removeNode(id);
-  if (!result.ok) {
-    return err(
-      toolCall.id,
-      `Cannot remove node '${id}': ${result.error.code === 'NODE_NOT_FOUND' ? 'not found' : result.error.message}`,
-    );
+  // Pre-flight existence check so the success message can mention the
+  // cascade-deleted edge count without a per-mutation result lookup.
+  if (!store.getState().nodes[id]) {
+    return { ok: false, errorContent: `Cannot remove node '${id}': not found` };
   }
-  const removedEdges = result.value.removedEdgeIds.length;
-  return ok(
-    toolCall.id,
-    `Removed node '${id}'${removedEdges > 0 ? ` and cascade-deleted ${String(removedEdges)} edge(s)` : ''}.`,
-  );
+  const cascadingEdges = Object.values(store.getState().edges).filter(
+    (e) => e.source === id || e.target === id,
+  ).length;
+  return {
+    ok: true,
+    mutations: [{ kind: 'removeNode', id }],
+    successContent:
+      cascadingEdges > 0
+        ? `Removed node '${id}' and cascade-deleted ${String(cascadingEdges)} edge(s).`
+        : `Removed node '${id}'.`,
+  };
 }
 
-function applyInsertBetween(
-  toolCall: ToolUseBlock,
-  store: StoreApi<WorkflowStoreState>,
-): ToolResultBlock {
-  if (!isObject(toolCall.input)) {
-    return err(toolCall.id, 'Cannot insert between: input must be an object');
+function buildInsertBetween(input: unknown, store: StoreApi<WorkflowStoreState>): ToolBuildResult {
+  if (!isObject(input)) {
+    return { ok: false, errorContent: 'Cannot insert between: input must be an object' };
   }
-  const { source, target, kind, customType, data } = toolCall.input;
+  const { source, target, kind, customType, data } = input;
   if (typeof source !== 'string' || typeof target !== 'string') {
-    return err(toolCall.id, "Cannot insert between: 'source' and 'target' must be strings");
+    return {
+      ok: false,
+      errorContent: "Cannot insert between: 'source' and 'target' must be strings",
+    };
   }
   if (kind !== 'task' && kind !== 'custom') {
-    return err(
-      toolCall.id,
-      `Cannot insert between: 'kind' must be 'task' or 'custom' (got ${JSON.stringify(kind)})`,
-    );
+    return {
+      ok: false,
+      errorContent: `Cannot insert between: 'kind' must be 'task' or 'custom' (got ${JSON.stringify(kind)})`,
+    };
   }
 
   const state = store.getState();
   const sourceNode = state.nodes[source];
   const targetNode = state.nodes[target];
   if (!sourceNode || !targetNode) {
-    return err(
-      toolCall.id,
-      `Cannot insert between '${source}' and '${target}': source or target not found`,
-    );
+    return {
+      ok: false,
+      errorContent: `Cannot insert between '${source}' and '${target}': source or target not found`,
+    };
   }
   const existingEdge = Object.values(state.edges).find(
     (e) => e.source === source && e.target === target,
   );
   if (!existingEdge) {
-    return err(
-      toolCall.id,
-      `Cannot insert between '${source}' and '${target}': nodes are not connected`,
-    );
+    return {
+      ok: false,
+      errorContent: `Cannot insert between '${source}' and '${target}': nodes are not connected`,
+    };
   }
 
   const dataValidation = validateData(data);
   if (!dataValidation.ok) {
-    return err(toolCall.id, `Cannot insert between: ${dataValidation.error}`);
+    return { ok: false, errorContent: `Cannot insert between: ${dataValidation.error}` };
   }
 
   const midPosition = {
     x: Math.round((sourceNode.position.x + targetNode.position.x) / 2),
     y: Math.round((sourceNode.position.y + targetNode.position.y) / 2),
   };
+  const newId = nanoid();
 
   let addInput: AddNodeInput;
   if (kind === 'custom') {
@@ -298,10 +363,11 @@ function applyInsertBetween(
       typeof customType !== 'string' ||
       !(VALID_CUSTOM_TYPES as readonly string[]).includes(customType)
     ) {
-      return err(
-        toolCall.id,
-        `Cannot insert between: 'customType' is required and must be a valid insurance kind when kind === 'custom'`,
-      );
+      return {
+        ok: false,
+        errorContent:
+          "Cannot insert between: 'customType' is required and must be a valid insurance kind when kind === 'custom'",
+      };
     }
     addInput = {
       kind: 'custom',
@@ -313,28 +379,14 @@ function applyInsertBetween(
     addInput = { kind: 'task', position: midPosition, data: dataValidation.value };
   }
 
-  // Sequential apply. If a step after the first fails, partial state is
-  // left behind — acceptable at Tier 1; the LLM can recover via the
-  // cap'd agent loop.
-  const removeRes = store.getState().removeEdge(existingEdge.id);
-  if (!removeRes.ok) {
-    return err(toolCall.id, `Cannot insert between: failed to remove existing edge`);
-  }
-  const addRes = store.getState().addNode(addInput);
-  if (!addRes.ok) {
-    return err(toolCall.id, `Cannot insert between: failed to add node — ${addRes.error.message}`);
-  }
-  const conn1 = store.getState().connectNodes({ source, target: addRes.value.id });
-  if (!conn1.ok) {
-    return err(toolCall.id, `Cannot insert between: failed to connect source → new`);
-  }
-  const conn2 = store.getState().connectNodes({ source: addRes.value.id, target });
-  if (!conn2.ok) {
-    return err(toolCall.id, `Cannot insert between: failed to connect new → target`);
-  }
-
-  return ok(
-    toolCall.id,
-    `Inserted ${addRes.value.kind} node '${addRes.value.id}' between '${source}' and '${target}'.`,
-  );
+  return {
+    ok: true,
+    mutations: [
+      { kind: 'removeEdge', id: existingEdge.id },
+      { kind: 'addNode', input: addInput, id: newId },
+      { kind: 'connectNodes', input: { source, target: newId } },
+      { kind: 'connectNodes', input: { source: newId, target } },
+    ],
+    successContent: `Inserted ${addInput.kind} node '${newId}' between '${source}' and '${target}'.`,
+  };
 }

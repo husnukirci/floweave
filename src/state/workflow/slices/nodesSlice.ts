@@ -21,7 +21,13 @@ import type {
 
 export interface NodesSlice {
   nodes: Record<string, WorkflowNode>;
-  addNode: (input: AddNodeInput) => Result<WorkflowNode>;
+  /**
+   * Adds a node. The optional second argument lets callers pre-generate
+   * the id (used by the LLM agent loop to include the id in tool_result
+   * messages even when the addNode mutation runs inside a batched
+   * applyMutations call). If omitted, a fresh nanoid is generated.
+   */
+  addNode: (input: AddNodeInput, id?: string) => Result<WorkflowNode>;
   updateNode: (id: string, patch: UpdateNodePatch) => Result<WorkflowNode>;
   moveNode: (id: string, position: NodePosition) => Result<WorkflowNode>;
   removeNode: (
@@ -50,8 +56,7 @@ function defaultLabel(input: AddNodeInput): string {
   }
 }
 
-function buildNodeFromInput(input: AddNodeInput): WorkflowNode {
-  const id = nanoid();
+function buildNodeFromInput(input: AddNodeInput, id: string): WorkflowNode {
   const data: NodeData = {
     label: input.data?.label ?? defaultLabel(input),
     variables: input.data?.variables ?? {},
@@ -70,8 +75,8 @@ export const createNodesSlice: StateCreator<
 > = (set, get) => ({
   nodes: {},
 
-  addNode: (input) => {
-    const node = buildNodeFromInput(input);
+  addNode: (input, id) => {
+    const node = buildNodeFromInput(input, id ?? nanoid());
     set((state) => {
       state.nodes[node.id] = node;
     });

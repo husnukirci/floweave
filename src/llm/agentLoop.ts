@@ -16,7 +16,9 @@ import type { StoreApi } from 'zustand';
 
 import type { WorkflowStoreState } from '@/state/workflow/storeState';
 
-import { applyToolCall } from './executor';
+import type { Mutation } from '@/state/workflow/types';
+
+import { buildToolMutations } from './executor';
 import { buildSystemPrompt } from './systemPrompt';
 import { TOOL_SCHEMAS, type ToolResultBlock, type ToolUseBlock } from './tools';
 
@@ -93,6 +95,95 @@ function isAbortError(error: unknown): boolean {
   return false;
 }
 
+// Builds mutations for every tool_use in a turn, applies them through
+// a single applyMutations() call (CLAUDE.md §4: "LLM-driven mutations
+// use applyMutations() as a single batched call. Never call individual
+// actions in a loop from the agent loop."), and produces tool_results
+// in the same order as the input tool_uses.
+//
+// Failure semantics: if a tool_use's input is malformed, its slot in
+// the result list is is_error and its mutations are not contributed to
+// the batch. If the batch itself fails mid-sequence, every tool_use
+// whose mutations participated in (or after) the failed mutation is
+// marked is_error with the underlying validator reason; tool_uses that
+// failed validation upfront keep their original error.
+function batchApplyToolUses(
+  toolUses: readonly ToolUseBlock[],
+  store: StoreApi<WorkflowStoreState>,
+): ToolResultBlock[] {
+  const results: ToolResultBlock[] = new Array<ToolResultBlock>(toolUses.length);
+  const allMutations: Mutation[] = [];
+  // For each tool_use index, the [start, end) slice of allMutations it
+  // contributed. Used to map a batch failure back to the responsible
+  // tool_use(s).
+  const ranges = new Array<{ start: number; end: number } | null>(toolUses.length);
+
+  for (let i = 0; i < toolUses.length; i += 1) {
+    const toolUse = toolUses[i];
+    if (!toolUse) {
+      ranges[i] = null;
+      continue;
+    }
+    const built = buildToolMutations(toolUse, store);
+    if (!built.ok) {
+      results[i] = {
+        type: 'tool_result',
+        tool_use_id: toolUse.id,
+        content: built.errorContent,
+        is_error: true,
+      };
+      ranges[i] = null;
+      continue;
+    }
+    const start = allMutations.length;
+    for (const m of built.mutations) allMutations.push(m);
+    ranges[i] = { start, end: allMutations.length };
+    // Provisionally mark success — overwritten below if the batch fails.
+    results[i] = {
+      type: 'tool_result',
+      tool_use_id: toolUse.id,
+      content: built.successContent,
+    };
+  }
+
+  if (allMutations.length === 0) return results;
+
+  const batch = store.getState().applyMutations(allMutations);
+  if (batch.ok) return results;
+
+  const failedIndex = (() => {
+    const v = batch.error.details?.index;
+    return typeof v === 'number' ? v : -1;
+  })();
+  const reason = ((): string | undefined => {
+    const cause = batch.error.details?.cause;
+    if (typeof cause !== 'object' || cause === null) return undefined;
+    const causeDetails = (cause as { details?: unknown }).details;
+    if (typeof causeDetails !== 'object' || causeDetails === null) return undefined;
+    const r = (causeDetails as { reason?: unknown }).reason;
+    return typeof r === 'string' ? r : undefined;
+  })();
+
+  for (let i = 0; i < toolUses.length; i += 1) {
+    const range = ranges[i];
+    const toolUse = toolUses[i];
+    if (!range || !toolUse) continue;
+    // The tool_use's mutations either include the failing index or run
+    // after it (so they were never applied). Either way the LLM should
+    // see this as an error.
+    if (failedIndex < 0 || range.end > failedIndex) {
+      results[i] = {
+        type: 'tool_result',
+        tool_use_id: toolUse.id,
+        content: reason ? `Tool failed: ${reason}` : `Tool failed: ${batch.error.message}`,
+        is_error: true,
+      };
+    }
+  }
+
+  return results;
+}
+
 export async function runAgentLoop(params: AgentLoopParams): Promise<AgentLoopResult> {
   const {
     userMessage,
@@ -161,10 +252,13 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<AgentLoopRe
       };
     }
 
-    const toolResults: ToolResultBlock[] = [];
-    for (const toolUse of toolUseBlocks) {
-      const result = applyToolCall(toolUse, store);
-      toolResults.push(result);
+    const toolResults = batchApplyToolUses(toolUseBlocks, store);
+    for (let i = 0; i < toolUseBlocks.length; i += 1) {
+      const toolUse = toolUseBlocks[i];
+      const result = toolResults[i];
+      // Indices line up by construction; the guards satisfy
+      // noUncheckedIndexedAccess.
+      if (!toolUse || !result) continue;
       toolCalls.push({
         name: toolUse.name,
         input: toolUse.input,

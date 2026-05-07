@@ -95,7 +95,17 @@ export interface ConnectNodesInput {
 // 1:1 mapping with the LLM tool schema in Phase 6 (ADR-009 atomic tools).
 
 export type Mutation =
-  | { kind: 'addNode'; input: AddNodeInput }
+  | {
+      kind: 'addNode';
+      input: AddNodeInput;
+      /**
+       * Optional pre-generated id. The LLM agent loop pre-generates ids
+       * upfront so the success tool_result can include the new node's id
+       * even when applied through a batched applyMutations() call. When
+       * absent, addNode generates a fresh nanoid as usual.
+       */
+      id?: string;
+    }
   | { kind: 'updateNode'; id: string; patch: UpdateNodePatch }
   | { kind: 'moveNode'; id: string; position: NodePosition }
   | { kind: 'removeNode'; id: string }
