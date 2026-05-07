@@ -1,0 +1,67 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm test*)",
+      "Bash(npm install*)",
+      "Bash(npm ci)",
+      "Bash(npx *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git add *)",
+      "Bash(git commit*)",
+      "Bash(git checkout -b *)",
+      "Bash(git checkout *)",
+      "Bash(git push)",
+      "Bash(git push -u origin *)",
+      "Bash(git push origin *)",
+      "Bash(git fetch*)",
+      "Bash(git pull --ff-only*)",
+      "Bash(git remote *)",
+      "Bash(gh auth*)",
+      "Bash(gh pr view*)",
+      "Bash(gh pr list*)",
+      "Bash(gh pr create*)",
+      "Bash(gh pr edit*)",
+      "Bash(gh pr ready*)",
+      "Bash(gh repo view*)",
+      "Bash(gh api*)",
+      "Bash(make *)"
+    ],
+    "deny": [
+      "Bash(git commit --no-verify*)",
+      "Bash(git commit*--no-verify*)",
+      "Bash(git push --no-verify*)",
+      "Bash(git push*--no-verify*)",
+      "Bash(git commit --no-gpg-sign*)",
+      "Bash(git commit*--no-gpg-sign*)",
+      "Bash(gh pr merge*)",
+      "Bash(git merge *)"
+    ],
+    "ask": [
+      "Bash(rm -rf*)",
+      "Bash(git reset --hard*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git rebase*)",
+      "Bash(git checkout main*)",
+      "Bash(git pull*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/forbidden-imports.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
