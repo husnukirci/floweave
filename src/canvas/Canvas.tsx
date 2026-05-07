@@ -13,8 +13,13 @@
 // ships.
 
 import { type JSX, type PointerEvent, useCallback, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 
+import { workflowStore } from '@/state/workflow/instance';
+import { selectNodeIds } from '@/state/workflow/selectors';
 import { useUiStore } from '@/state/ui/uiStore';
+
+import { Node } from './Node';
 
 interface PanState {
   pointerId: number;
@@ -27,13 +32,17 @@ interface PanState {
 export function Canvas(): JSX.Element {
   const viewport = useUiStore((s) => s.viewport);
   const setViewport = useUiStore((s) => s.setViewport);
+  const selectNode = useUiStore((s) => s.selectNode);
+  const nodeIds = workflowStore(useShallow(selectNodeIds));
   const panRef = useRef<PanState | null>(null);
 
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
-      // Pan only when the down event hits the canvas itself; nodes will
-      // mount in commit 4 and stop propagation to start their own drag.
+      // Pan only when the down event hits the canvas itself; nodes
+      // stop propagation in their own click handler. A click on the
+      // empty canvas also clears any node selection.
       if (event.target !== event.currentTarget) return;
+      selectNode(null);
       event.currentTarget.setPointerCapture(event.pointerId);
       panRef.current = {
         pointerId: event.pointerId,
@@ -43,7 +52,7 @@ export function Canvas(): JSX.Element {
         startVy: viewport.y,
       };
     },
-    [viewport.x, viewport.y],
+    [selectNode, viewport.x, viewport.y],
   );
 
   const handlePointerMove = useCallback(
@@ -80,9 +89,12 @@ export function Canvas(): JSX.Element {
         // Dynamic transform value cannot be a static Tailwind class.
         style={{ transform: `translate3d(${String(viewport.x)}px, ${String(viewport.y)}px, 0)` }}
       >
-        {/* Nodes mount here in commit 4; SVG edge overlay in Phase 3. */}
+        {nodeIds.map((id) => (
+          <Node key={id} id={id} />
+        ))}
+        {/* SVG edge overlay lands in Phase 3. */}
       </div>
-      <EmptyState />
+      {nodeIds.length === 0 && <EmptyState />}
     </div>
   );
 }
