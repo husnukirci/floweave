@@ -1,0 +1,285 @@
+// Toolbar — top bar with the Add Node menu and IO controls (Import,
+// Export, Clear). Mounted by App above the Canvas.
+//
+// The Add menu is a controlled disclosure with click-outside dismissal.
+// Keyboard navigation (arrow keys, Escape, Tab) lands in commit 2 along
+// with full ARIA role mapping per CLAUDE.md §4 accessibility invariant.
+
+import { ChevronDown, Download, Plus, Trash2, Upload, type LucideIcon } from 'lucide-react';
+import { type ChangeEvent, type JSX, useEffect, useRef, useState } from 'react';
+
+import { CUSTOM_NODE_REGISTRY } from '@/nodes/registry';
+import { workflowStore } from '@/state/workflow/instance';
+import { useUiStore } from '@/state/ui/uiStore';
+import type { CustomNodeType } from '@/state/workflow/types';
+
+type BasicKind = 'start' | 'task' | 'end';
+
+const BASIC_KINDS: readonly { kind: BasicKind; label: string }[] = [
+  { kind: 'start', label: 'Start' },
+  { kind: 'task', label: 'Task' },
+  { kind: 'end', label: 'End' },
+];
+
+const NODE_HALF_WIDTH = 70;
+const NODE_HALF_HEIGHT = 28;
+
+// World-coordinate position for a freshly added node — center of the
+// visible canvas with a small per-add cascade so multiple adds do not
+// stack.
+function defaultPosition(): { x: number; y: number } {
+  const root = document.querySelector('[role="application"]');
+  const rect = root?.getBoundingClientRect();
+  const viewport = useUiStore.getState().viewport;
+  const cx = rect ? rect.width / 2 : 400;
+  const cy = rect ? rect.height / 2 : 300;
+  const count = Object.keys(workflowStore.getState().nodes).length;
+  const cascade = (count % 8) * 32;
+  return {
+    x: Math.round(cx - viewport.x - NODE_HALF_WIDTH + cascade),
+    y: Math.round(cy - viewport.y - NODE_HALF_HEIGHT + cascade),
+  };
+}
+
+export function Toolbar(): JSX.Element {
+  const [addOpen, setAddOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const menuContainerRef = useRef<HTMLDivElement>(null);
+
+  // Outside-click dismissal — only attached while the menu is open.
+  useEffect(() => {
+    if (!addOpen) return undefined;
+    const handler = (event: MouseEvent): void => {
+      const container = menuContainerRef.current;
+      if (container && !container.contains(event.target as Node)) {
+        setAddOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+    };
+  }, [addOpen]);
+
+  const addBasic = (kind: BasicKind): void => {
+    workflowStore.getState().addNode({ kind, position: defaultPosition() });
+    setAddOpen(false);
+  };
+
+  const addCustom = (customType: CustomNodeType): void => {
+    const label = CUSTOM_NODE_REGISTRY[customType].label;
+    workflowStore.getState().addNode({
+      kind: 'custom',
+      customType,
+      position: defaultPosition(),
+      data: { label },
+    });
+    setAddOpen(false);
+  };
+
+  const handleImportClick = (): void => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const result = workflowStore.getState().importJSON(text);
+    if (!result.ok) {
+      useUiStore.getState().setNotification({
+        code: result.error.code,
+        message: friendlyImportError(result.error.code),
+      });
+    }
+    // Reset so re-selecting the same file re-imports.
+    event.target.value = '';
+  };
+
+  const handleExport = (): void => {
+    const json = workflowStore.getState().exportJSON();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `floweave-workflow-${String(Date.now())}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleClear = (): void => {
+    if (!window.confirm('Clear the workflow? All nodes and edges will be removed.')) {
+      return;
+    }
+    workflowStore.getState().clear();
+  };
+
+  return (
+    <div
+      role="toolbar"
+      aria-label="Workflow editor toolbar"
+      className="flex items-center gap-1 border-b border-neutral-200 bg-white px-3 py-2 text-sm"
+    >
+      <div className="relative" ref={menuContainerRef}>
+        <ToolbarButton
+          icon={Plus}
+          onClick={() => {
+            setAddOpen((open) => !open);
+          }}
+          aria-haspopup="menu"
+          aria-expanded={addOpen}
+          data-testid="toolbar-add-button"
+        >
+          Add Node
+          <ChevronDown className="h-3 w-3" aria-hidden />
+        </ToolbarButton>
+        {addOpen ? <AddMenu onAddBasic={addBasic} onAddCustom={addCustom} /> : null}
+      </div>
+
+      <div className="flex-1" />
+
+      <ToolbarButton icon={Upload} onClick={handleImportClick} data-testid="toolbar-import-button">
+        Import
+      </ToolbarButton>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json,application/JSON,.json"
+        onChange={(event) => {
+          void handleImportFile(event);
+        }}
+        className="hidden"
+        data-testid="toolbar-import-input"
+        aria-hidden
+      />
+
+      <ToolbarButton icon={Download} onClick={handleExport} data-testid="toolbar-export-button">
+        Export
+      </ToolbarButton>
+
+      <ToolbarButton icon={Trash2} onClick={handleClear} data-testid="toolbar-clear-button">
+        Clear
+      </ToolbarButton>
+    </div>
+  );
+}
+
+interface ToolbarButtonProps {
+  icon: LucideIcon;
+  onClick: () => void;
+  children: React.ReactNode;
+  'aria-haspopup'?: 'menu';
+  'aria-expanded'?: boolean;
+  'data-testid'?: string;
+}
+
+function ToolbarButton({
+  icon: Icon,
+  onClick,
+  children,
+  ...rest
+}: ToolbarButtonProps): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-neutral-700 transition-colors hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      {...rest}
+    >
+      <Icon className="h-4 w-4" aria-hidden />
+      {children}
+    </button>
+  );
+}
+
+interface AddMenuProps {
+  onAddBasic: (kind: BasicKind) => void;
+  onAddCustom: (customType: CustomNodeType) => void;
+}
+
+function AddMenu({ onAddBasic, onAddCustom }: AddMenuProps): JSX.Element {
+  return (
+    <div
+      role="menu"
+      data-testid="toolbar-add-menu"
+      className="absolute left-0 top-full z-20 mt-1 min-w-[220px] rounded-md border border-neutral-200 bg-white p-1 shadow-lg"
+    >
+      <MenuSection label="Basic">
+        {BASIC_KINDS.map(({ kind, label }) => (
+          <MenuItem
+            key={kind}
+            data-testid={`toolbar-add-${kind}`}
+            onClick={() => {
+              onAddBasic(kind);
+            }}
+          >
+            <span className="inline-block h-3 w-3 rounded-full bg-neutral-300" aria-hidden />
+            {label}
+          </MenuItem>
+        ))}
+      </MenuSection>
+      <MenuSection label="Insurance">
+        {Object.entries(CUSTOM_NODE_REGISTRY).map(([type, spec]) => {
+          const customType = type as CustomNodeType;
+          const Icon = spec.icon;
+          return (
+            <MenuItem
+              key={type}
+              data-testid={`toolbar-add-${type}`}
+              onClick={() => {
+                onAddCustom(customType);
+              }}
+            >
+              <Icon className={`h-4 w-4 ${spec.iconClass}`} aria-hidden />
+              {spec.label}
+            </MenuItem>
+          );
+        })}
+      </MenuSection>
+    </div>
+  );
+}
+
+interface MenuSectionProps {
+  label: string;
+  children: React.ReactNode;
+}
+
+function MenuSection({ label, children }: MenuSectionProps): JSX.Element {
+  return (
+    <div>
+      <div className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+        {label}
+      </div>
+      <div className="flex flex-col">{children}</div>
+    </div>
+  );
+}
+
+interface MenuItemProps {
+  onClick: () => void;
+  children: React.ReactNode;
+  'data-testid'?: string;
+}
+
+function MenuItem({ onClick, children, ...rest }: MenuItemProps): JSX.Element {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className="flex items-center gap-2 rounded px-3 py-1.5 text-left text-sm text-neutral-800 hover:bg-neutral-100 focus:outline-none focus-visible:bg-neutral-100"
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+}
+
+function friendlyImportError(code: string): string {
+  if (code === 'INVALID_JSON') return "That file isn't valid JSON.";
+  if (code === 'SCHEMA_INVALID') return "That file isn't a valid floweave workflow.";
+  return 'Import failed.';
+}
