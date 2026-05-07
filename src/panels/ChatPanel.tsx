@@ -4,9 +4,12 @@
 // label), assistant (left-aligned, optional tool-call summaries),
 // system (red alert region — surfaces proxy / iteration-cap errors).
 //
-// Input plumbing (textbox, send, cancel) lands in commit 3.
+// The input form drives sendMessage / cancelInFlight; the input stays
+// enabled during pending so focus is preserved (WCAG Tier 1). Only
+// the send button is disabled while a request is in flight; a Cancel
+// button surfaces alongside it for the duration of the pending state.
 
-import type { JSX } from 'react';
+import { useRef, useState, type JSX } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { useChatStore, type ChatMessage } from '@/state/chat/chatStore';
@@ -36,7 +39,71 @@ export function ChatPanel(): JSX.Element {
           </ul>
         )}
       </div>
+      <ChatInput />
     </aside>
+  );
+}
+
+function ChatInput(): JSX.Element {
+  const [value, setValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const status = useChatStore((s) => s.status);
+  const sendMessage = useChatStore((s) => s.sendMessage);
+  const cancelInFlight = useChatStore((s) => s.cancelInFlight);
+
+  const isPending = status === 'pending';
+  const trimmed = value.trim();
+  const canSend = trimmed.length > 0 && !isPending;
+
+  // Type inferred from <form onSubmit={...}> — explicit React types
+  // (FormEvent / FormEventHandler) are flagged deprecated by
+  // typescript-eslint/no-deprecated; inference avoids the complaint
+  // without losing safety.
+  function handleSubmit(event: { preventDefault: () => void }): void {
+    event.preventDefault();
+    if (!canSend) return;
+    setValue('');
+    // Fire and forget — chat store owns the result envelope and
+    // surfaces failures as system messages in role="alert".
+    void sendMessage(trimmed);
+    // Restore focus so the user keeps a keyboard flow without
+    // tabbing back into the input after each turn.
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="flex items-center gap-2 border-t border-neutral-200 px-3 py-2"
+    >
+      <input
+        ref={inputRef}
+        type="text"
+        aria-label="Message"
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value);
+        }}
+        placeholder="Describe a workflow…"
+        className="min-w-0 flex-1 rounded border border-neutral-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+      />
+      {isPending ? (
+        <button
+          type="button"
+          onClick={cancelInFlight}
+          className="shrink-0 rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100"
+        >
+          Cancel
+        </button>
+      ) : null}
+      <button
+        type="submit"
+        disabled={!canSend}
+        className="shrink-0 rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Send
+      </button>
+    </form>
   );
 }
 
