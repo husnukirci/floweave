@@ -120,4 +120,57 @@ describe('Toolbar', () => {
     expect(Object.keys(workflowStore.getState().nodes)).toHaveLength(1);
     window.confirm = original;
   });
+
+  describe('keyboard navigation', () => {
+    it('focuses the first item when the menu opens', async () => {
+      const { getByTestId } = render(<Toolbar />);
+      fireEvent.click(getByTestId('toolbar-add-button'));
+
+      // useEffect runs after render — wait a microtask
+      await Promise.resolve();
+      expect(document.activeElement).toBe(getByTestId('toolbar-add-start'));
+    });
+
+    it('ArrowDown moves focus to the next menu item', async () => {
+      const { getByTestId } = render(<Toolbar />);
+      fireEvent.click(getByTestId('toolbar-add-button'));
+      await Promise.resolve();
+
+      fireEvent.keyDown(getByTestId('toolbar-add-menu'), { key: 'ArrowDown' });
+      expect(document.activeElement).toBe(getByTestId('toolbar-add-task'));
+    });
+
+    it('ArrowUp from the first item wraps to the last', async () => {
+      const { getByTestId } = render(<Toolbar />);
+      fireEvent.click(getByTestId('toolbar-add-button'));
+      await Promise.resolve();
+
+      fireEvent.keyDown(getByTestId('toolbar-add-menu'), { key: 'ArrowUp' });
+      // Last menu item is the 9th custom node — denyClaim
+      expect(document.activeElement).toBe(getByTestId('toolbar-add-denyClaim'));
+    });
+
+    it('Escape closes the menu and returns focus to the Add button', async () => {
+      const { getByTestId, queryByTestId } = render(<Toolbar />);
+      fireEvent.click(getByTestId('toolbar-add-button'));
+      await Promise.resolve();
+
+      fireEvent.keyDown(getByTestId('toolbar-add-menu'), { key: 'Escape' });
+
+      expect(queryByTestId('toolbar-add-menu')).toBeNull();
+      expect(document.activeElement).toBe(getByTestId('toolbar-add-button'));
+    });
+
+    it('Home jumps to the first item; End jumps to the last', async () => {
+      const { getByTestId } = render(<Toolbar />);
+      fireEvent.click(getByTestId('toolbar-add-button'));
+      await Promise.resolve();
+
+      fireEvent.keyDown(getByTestId('toolbar-add-menu'), { key: 'End' });
+      expect(document.activeElement).toBe(getByTestId('toolbar-add-denyClaim'));
+
+      fireEvent.keyDown(getByTestId('toolbar-add-menu'), { key: 'Home' });
+      expect(document.activeElement).toBe(getByTestId('toolbar-add-start'));
+    });
+  });
 });
