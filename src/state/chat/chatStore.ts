@@ -10,6 +10,7 @@
 
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 
+import type { WorkflowStoreState } from '@/state/workflow/storeState';
 import type { Result, StoreError } from '@/state/workflow/types';
 
 export type ChatRole = 'user' | 'assistant' | 'system';
@@ -52,7 +53,27 @@ const initialState: Pick<ChatState, 'messages' | 'status' | 'error' | 'abortCont
 
 export type ChatStore = UseBoundStore<StoreApi<ChatState>>;
 
-export function createChatStore(): ChatStore {
+export interface CreateChatStoreOptions {
+  /**
+   * Endpoint the chat sendMessage POSTs to. Defaults to
+   * import.meta.env.VITE_API_ENDPOINT, falling back to '/api/chat'.
+   * Tests pass a fixture URL alongside an MSW handler.
+   */
+  endpoint?: string;
+  /**
+   * Workflow store the agent loop applies mutations to. Defaults to the
+   * module-level singleton in src/state/workflow/instance.ts. Tests pass
+   * a fresh store per case so cases are independent.
+   */
+  workflowStore?: StoreApi<WorkflowStoreState>;
+  /** Injected for tests; defaults to global fetch. */
+  fetchImpl?: typeof fetch;
+}
+
+// Options consumed in commit 2's sendMessage implementation. Accepting
+// them in commit 1 (with the body still stubbed) lets the new test
+// suite compile and exercise the intended public shape.
+export function createChatStore(_options: CreateChatStoreOptions = {}): ChatStore {
   return create<ChatState>()((set, get) => ({
     ...initialState,
 

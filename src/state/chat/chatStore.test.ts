@@ -1,6 +1,12 @@
+import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { createTestWorkflowStore, type TestWorkflowStore } from '@/test/factories';
+import { server } from '@/test/server';
+
 import { createChatStore, type ChatMessage, type ChatStore } from './chatStore';
+
+const ENDPOINT = 'https://api.test.local/api/chat';
 
 const message = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   id: overrides.id ?? 'm1',
@@ -33,12 +39,137 @@ describe('chatStore', () => {
     });
   });
 
-  describe('sendMessage (Phase 1 stub)', () => {
-    it('returns Result.err NOT_IMPLEMENTED', async () => {
-      const result = await store.getState().sendMessage('hi');
+  describe('sendMessage', () => {
+    let workflowStore: TestWorkflowStore;
+    let chat: ChatStore;
+
+    beforeEach(() => {
+      workflowStore = createTestWorkflowStore();
+      chat = createChatStore({ endpoint: ENDPOINT, workflowStore });
+    });
+
+    it('appends a user message and an assistant message on a no-tool turn', async () => {
+      server.use(
+        http.post(ENDPOINT, () =>
+          HttpResponse.json({
+            content: [{ type: 'text', text: 'Hello back.' }],
+            stop_reason: 'end_turn',
+          }),
+        ),
+      );
+
+      const result = await chat.getState().sendMessage('Hi');
+
+      expect(result.ok).toBe(true);
+      const messages = chat.getState().messages;
+      expect(messages).toHaveLength(2);
+      expect(messages[0]?.role).toBe('user');
+      expect(messages[0]?.content).toBe('Hi');
+      expect(messages[1]?.role).toBe('assistant');
+      expect(messages[1]?.content).toBe('Hello back.');
+      expect(chat.getState().status).toBe('idle');
+      expect(chat.getState().abortController).toBeNull();
+    });
+
+    it('applies tool_use blocks to the workflow store and surfaces them as toolCalls summaries', async () => {
+      let call = 0;
+      server.use(
+        http.post(ENDPOINT, () => {
+          call += 1;
+          if (call === 1) {
+            return HttpResponse.json({
+              content: [
+                {
+                  type: 'tool_use',
+                  id: 'tu1',
+                  name: 'add_node',
+                  input: { kind: 'task', position: { x: 0, y: 0 } },
+                },
+                {
+                  type: 'tool_use',
+                  id: 'tu2',
+                  name: 'add_node',
+                  input: { kind: 'end', position: { x: 200, y: 0 } },
+                },
+              ],
+              stop_reason: 'tool_use',
+            });
+          }
+          return HttpResponse.json({
+            content: [{ type: 'text', text: 'Added two nodes.' }],
+            stop_reason: 'end_turn',
+          });
+        }),
+      );
+
+      await chat.getState().sendMessage('add two nodes');
+
+      expect(Object.keys(workflowStore.getState().nodes)).toHaveLength(2);
+      const messages = chat.getState().messages;
+      const last = messages.at(-1);
+      expect(last?.role).toBe('assistant');
+      expect(last?.toolCalls).toHaveLength(2);
+      expect(last?.toolCalls?.[0]).toMatchObject({ name: 'add_node', result: 'ok' });
+      expect(last?.toolCalls?.[1]).toMatchObject({ name: 'add_node', result: 'ok' });
+    });
+
+    it('flips status to pending while the request is in flight and back to idle on completion', async () => {
+      let resolveResponse: (() => void) | undefined;
+      server.use(
+        http.post(ENDPOINT, async () => {
+          await new Promise<void>((resolve) => {
+            resolveResponse = resolve;
+          });
+          return HttpResponse.json({
+            content: [{ type: 'text', text: 'late' }],
+            stop_reason: 'end_turn',
+          });
+        }),
+      );
+
+      const send = chat.getState().sendMessage('hi');
+      await Promise.resolve();
+      expect(chat.getState().status).toBe('pending');
+      expect(chat.getState().abortController).not.toBeNull();
+
+      resolveResponse?.();
+      await send;
+
+      expect(chat.getState().status).toBe('idle');
+      expect(chat.getState().abortController).toBeNull();
+    });
+
+    it('cancels the in-flight request and returns idle when cancelInFlight() runs mid-flight', async () => {
+      server.use(
+        http.post(ENDPOINT, async () => {
+          await new Promise((r) => setTimeout(r, 100));
+          return HttpResponse.json({
+            content: [{ type: 'text', text: 'late' }],
+            stop_reason: 'end_turn',
+          });
+        }),
+      );
+
+      const send = chat.getState().sendMessage('hi');
+      await Promise.resolve();
+      chat.getState().cancelInFlight();
+      const result = await send;
+
       expect(result.ok).toBe(false);
-      if (result.ok) return;
-      expect(result.error.code).toBe('NOT_IMPLEMENTED');
+      expect(chat.getState().status).toBe('idle');
+      expect(chat.getState().abortController).toBeNull();
+    });
+
+    it('pushes a system error message and flips status to error when the proxy returns 5xx', async () => {
+      server.use(http.post(ENDPOINT, () => HttpResponse.json({ error: 'down' }, { status: 500 })));
+
+      const result = await chat.getState().sendMessage('hi');
+
+      expect(result.ok).toBe(false);
+      const messages = chat.getState().messages;
+      expect(messages.some((m) => m.role === 'system')).toBe(true);
+      expect(chat.getState().status).toBe('error');
+      expect(chat.getState().error).not.toBeNull();
     });
   });
 
