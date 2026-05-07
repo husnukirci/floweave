@@ -686,7 +686,7 @@ Targets, by artifact (split that emerged during Phase 8 — the SPA bundle that 
 Achieved at v1 (measured in Phase 9):
 
 - SPA bundle: ~84KB gzipped — well under budget.
-- WC bundle: ~229KB gzipped — under the 250KB drop-in budget.
+- WC bundle: ~101KB gzipped — well under the 250KB drop-in budget.
 - Edge re-render isolation verified via `Edge.test.tsx` React Profiler test (zero renders on unrelated node moves).
 
 The deeper measurement deliverables (TTI numbers, drag profile, memory cycle analysis) live in `docs/performance.md` if and when that Tier 2 doc lands.

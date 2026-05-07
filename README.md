@@ -92,7 +92,7 @@ WCAG 2.2 AA target ([ADR-016](./docs/decisions.md)). Every interactive surface k
 | Metric                   | Result                                                                    |
 | ------------------------ | ------------------------------------------------------------------------- |
 | SPA bundle (JS, gzipped) | ~84 KB — well under the 200 KB ADR-022 budget                             |
-| WC bundle (JS, gzipped)  | ~229 KB — React + Zustand + Tailwind inlined for drop-in usage            |
+| WC bundle (JS, gzipped)  | ~101 KB — React + Zustand + Tailwind inlined for drop-in usage            |
 | Edge re-render isolation | Verified via React Profiler test — moving an unrelated node fires zero    |
 |                          | renders on existing edges ([ADR-022](./docs/decisions.md))                |
 | Drag handler             | rAF-throttled, single `setPointerCapture` per drag, no document listeners |
