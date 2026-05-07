@@ -11,6 +11,7 @@ import { nanoid } from 'nanoid';
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 
 import { runAgentLoop } from '@/llm/agentLoop';
+import { useUiStore, type UiState } from '@/state/ui/uiStore';
 import { workflowStore as defaultWorkflowStore } from '@/state/workflow/instance';
 import type { WorkflowStoreState } from '@/state/workflow/storeState';
 import type { Result, StoreError } from '@/state/workflow/types';
@@ -68,6 +69,12 @@ export interface CreateChatStoreOptions {
    * a fresh store per case so cases are independent.
    */
   workflowStore?: StoreApi<WorkflowStoreState>;
+  /**
+   * UI store the chat surfaces side effects through (e.g.
+   * markRecentlyAdded for the AI-added pulse highlight). Defaults to
+   * the module-level singleton.
+   */
+  uiStore?: StoreApi<UiState>;
   /** Injected for tests; defaults to global fetch. */
   fetchImpl?: typeof fetch;
 }
@@ -87,6 +94,7 @@ function isAbortError(message: string): boolean {
 export function createChatStore(options: CreateChatStoreOptions = {}): ChatStore {
   const endpoint = options.endpoint ?? defaultEndpoint();
   const workflowStore = options.workflowStore ?? defaultWorkflowStore;
+  const uiStore = options.uiStore ?? useUiStore;
   const fetchImpl = options.fetchImpl;
 
   return create<ChatState>()((set, get) => ({
@@ -104,6 +112,10 @@ export function createChatStore(options: CreateChatStoreOptions = {}): ChatStore
         timestamp: Date.now(),
       };
       const controller = new AbortController();
+      // Snapshot existing node ids so we can diff after the agent loop
+      // and mark the newly created ones for the AI-added pulse highlight
+      // without parsing the agent loop's success messages.
+      const nodeIdsBefore = new Set(Object.keys(workflowStore.getState().nodes));
       set((state) => ({
         messages: [...state.messages, userMessage],
         status: 'pending',
@@ -147,6 +159,14 @@ export function createChatStore(options: CreateChatStoreOptions = {}): ChatStore
           status: 'idle',
           abortController: null,
         }));
+        // Diff node ids and surface newly created ones to the UI for
+        // the pulse highlight. Runs *after* the assistant message lands
+        // so ChatPanel + Canvas state move together.
+        const nodesAfter = workflowStore.getState().nodes;
+        const newNodeIds = Object.keys(nodesAfter).filter((id) => !nodeIdsBefore.has(id));
+        if (newNodeIds.length > 0) {
+          uiStore.getState().markRecentlyAdded(newNodeIds);
+        }
         return { ok: true, value: { messageCount: get().messages.length } };
       }
 

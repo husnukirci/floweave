@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createUiStore, type UiStore } from './uiStore';
 
@@ -92,6 +92,53 @@ describe('uiStore', () => {
       expect(store.getState().panels.properties).toBe(true);
       store.getState().togglePanel('properties');
       expect(store.getState().panels.properties).toBe(false);
+    });
+  });
+
+  describe('markRecentlyAdded', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('adds the supplied ids to recentlyAddedNodeIds', () => {
+      store.getState().markRecentlyAdded(['n1', 'n2']);
+
+      expect(store.getState().recentlyAddedNodeIds.has('n1')).toBe(true);
+      expect(store.getState().recentlyAddedNodeIds.has('n2')).toBe(true);
+    });
+
+    it('clears each id after the configured duration', () => {
+      store.getState().markRecentlyAdded(['n1'], { durationMs: 100 });
+      expect(store.getState().recentlyAddedNodeIds.has('n1')).toBe(true);
+
+      vi.advanceTimersByTime(100);
+
+      expect(store.getState().recentlyAddedNodeIds.has('n1')).toBe(false);
+    });
+
+    it('does not reset earlier timers when a later batch arrives', () => {
+      store.getState().markRecentlyAdded(['old'], { durationMs: 100 });
+      vi.advanceTimersByTime(50);
+      store.getState().markRecentlyAdded(['new'], { durationMs: 100 });
+
+      // After 50 more ms (total 100 from the first call), 'old' should
+      // already be cleared while 'new' is still active.
+      vi.advanceTimersByTime(50);
+      expect(store.getState().recentlyAddedNodeIds.has('old')).toBe(false);
+      expect(store.getState().recentlyAddedNodeIds.has('new')).toBe(true);
+
+      vi.advanceTimersByTime(50);
+      expect(store.getState().recentlyAddedNodeIds.has('new')).toBe(false);
+    });
+
+    it('is a no-op for an empty list', () => {
+      const before = store.getState().recentlyAddedNodeIds;
+      store.getState().markRecentlyAdded([]);
+      expect(store.getState().recentlyAddedNodeIds).toBe(before);
     });
   });
 });

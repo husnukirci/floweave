@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { createUiStore, type UiStore } from '@/state/ui/uiStore';
 import { createTestWorkflowStore, type TestWorkflowStore } from '@/test/factories';
 import { server } from '@/test/server';
 
@@ -163,6 +164,44 @@ describe('chatStore', () => {
       expect(result.ok).toBe(false);
       expect(chat.getState().status).toBe('idle');
       expect(chat.getState().abortController).toBeNull();
+    });
+
+    it('marks newly created node ids on the ui store after a successful add_node turn', async () => {
+      const uiStore: UiStore = createUiStore();
+      const chatWithUi = createChatStore({ endpoint: ENDPOINT, workflowStore, uiStore });
+
+      let call = 0;
+      server.use(
+        http.post(ENDPOINT, () => {
+          call += 1;
+          if (call === 1) {
+            return HttpResponse.json({
+              content: [
+                {
+                  type: 'tool_use',
+                  id: 'tu1',
+                  name: 'add_node',
+                  input: { kind: 'task', position: { x: 5, y: 5 } },
+                },
+              ],
+              stop_reason: 'tool_use',
+            });
+          }
+          return HttpResponse.json({
+            content: [{ type: 'text', text: 'Added.' }],
+            stop_reason: 'end_turn',
+          });
+        }),
+      );
+
+      const idsBefore = new Set(Object.keys(workflowStore.getState().nodes));
+      await chatWithUi.getState().sendMessage('add a step');
+
+      const newIds = Object.keys(workflowStore.getState().nodes).filter((id) => !idsBefore.has(id));
+      expect(newIds).toHaveLength(1);
+      const newId = newIds[0];
+      if (newId === undefined) throw new Error('expected at least one new node id');
+      expect(uiStore.getState().recentlyAddedNodeIds.has(newId)).toBe(true);
     });
 
     it('pushes a system error message and flips status to error when the proxy returns 5xx', async () => {

@@ -35,6 +35,11 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
   const connectingFromNodeId = useUiStore((s) => s.connectingFromNodeId);
   const isConnectingFromMe = isConnecting && connectingFromNodeId === id;
 
+  // True while this node is in the AI-added pulse window. The selector
+  // returns a primitive so unrelated set mutations don't re-render
+  // nodes whose flag didn't actually flip.
+  const isRecentlyAdded = useUiStore((s) => s.recentlyAddedNodeIds.has(id));
+
   const handleClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation();
@@ -156,6 +161,7 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
       data-kind={node.kind}
       data-custom-type={node.kind === 'custom' ? node.customType : undefined}
       data-selected={String(isSelected)}
+      data-recently-added={isRecentlyAdded ? '' : undefined}
       aria-label={ariaLabel}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
@@ -174,6 +180,7 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
         customSpec && [customSpec.borderClass, customSpec.bgClass, customSpec.textClass],
         isSelected && 'ring-2 ring-blue-500 ring-offset-2',
         isConnectingFromMe && 'ring-2 ring-amber-400 ring-offset-2',
+        isRecentlyAdded && 'animate-pulse-highlight',
       )}
       style={{
         // Dynamic position values — cannot be a static Tailwind class.
