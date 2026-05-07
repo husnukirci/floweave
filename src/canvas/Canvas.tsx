@@ -8,7 +8,7 @@
 //   - Hybrid HTML+SVG canvas: HTML divs for nodes (rendered inside this
 //     container), SVG overlay for edges (Phase 3).
 
-import { type JSX, useMemo } from 'react';
+import { type JSX, useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { workflowStore } from '@/state/workflow/instance';
@@ -18,7 +18,10 @@ import { usePointerDrag } from '@/utils/pointer';
 import type { ViewportOffset } from '@/state/ui/uiStore';
 
 import { ConnectionLayer } from './ConnectionLayer';
+import { ErrorBanner } from './ErrorBanner';
 import { Node } from './Node';
+
+const FORM_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
 interface PanStartData {
   initialViewport: ViewportOffset;
@@ -28,7 +31,28 @@ export function Canvas(): JSX.Element {
   const viewport = useUiStore((s) => s.viewport);
   const setViewport = useUiStore((s) => s.setViewport);
   const selectNode = useUiStore((s) => s.selectNode);
+  const selectEdge = useUiStore((s) => s.selectEdge);
   const nodeIds = workflowStore(useShallow(selectNodeIds));
+
+  // Window-level Delete listener for the currently selected edge. Edges
+  // are not natively focusable in a way that survives panning; routing
+  // the keystroke through the store keeps the contract simple.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+      const active = document.activeElement;
+      if (active && FORM_TAGS.has(active.tagName.toUpperCase())) return;
+      const { selectedEdgeId } = useUiStore.getState();
+      if (selectedEdgeId === null) return;
+      event.preventDefault();
+      workflowStore.getState().removeEdge(selectedEdgeId);
+      useUiStore.getState().selectEdge(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   // Pan handlers — usePointerDrag wires setPointerCapture and rAF
   // throttling. onDragStart returns null when the pointer down landed
@@ -37,8 +61,9 @@ export function Canvas(): JSX.Element {
     () => ({
       onDragStart: (event) => {
         if (event.target !== event.currentTarget) return null;
-        // Pointerdown on the empty canvas: clear any node selection.
+        // Pointerdown on the empty canvas: clear any selection.
         selectNode(null);
+        selectEdge(null);
         return { initialViewport: useUiStore.getState().viewport };
       },
       onDrag: (_event, delta, startData) => {
@@ -48,7 +73,7 @@ export function Canvas(): JSX.Element {
         });
       },
     }),
-    [selectNode, setViewport],
+    [selectEdge, selectNode, setViewport],
   );
   const pointerHandlers = usePointerDrag<PanStartData>(panHandlers);
 
@@ -74,6 +99,7 @@ export function Canvas(): JSX.Element {
         ))}
       </div>
       {nodeIds.length === 0 && <EmptyState />}
+      <ErrorBanner />
     </div>
   );
 }

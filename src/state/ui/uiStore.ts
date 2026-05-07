@@ -16,6 +16,12 @@ export interface ViewportOffset {
 
 export type PanelKey = 'properties' | 'chat';
 
+export interface UiNotification {
+  message: string;
+  /** Optional code (e.g. 'CANNOT_CONNECT') for tests + analytics. */
+  code?: string;
+}
+
 export interface UiState {
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
@@ -27,6 +33,8 @@ export interface UiState {
   /** Live cursor position in world coordinates during a connection drag. */
   connectingCursor: ViewportOffset | null;
   panels: Record<PanelKey, boolean>;
+  /** Transient user-facing notification (e.g. validation failure). */
+  notification: UiNotification | null;
 
   selectNode: (id: string | null) => void;
   selectEdge: (id: string | null) => void;
@@ -39,6 +47,7 @@ export interface UiState {
   finishConnecting: () => void;
   setPanelOpen: (panel: PanelKey, open: boolean) => void;
   togglePanel: (panel: PanelKey) => void;
+  setNotification: (notification: UiNotification | null) => void;
 }
 
 const initialState: Pick<
@@ -52,6 +61,7 @@ const initialState: Pick<
   | 'connectingFromNodeId'
   | 'connectingCursor'
   | 'panels'
+  | 'notification'
 > = {
   selectedNodeId: null,
   selectedEdgeId: null,
@@ -62,6 +72,7 @@ const initialState: Pick<
   connectingFromNodeId: null,
   connectingCursor: null,
   panels: { properties: false, chat: false },
+  notification: null,
 };
 
 export type UiStore = UseBoundStore<StoreApi<UiState>>;
@@ -109,6 +120,10 @@ export function createUiStore(): UiStore {
       },
       togglePanel: (panel) => {
         set((state) => ({ panels: { ...state.panels, [panel]: !state.panels[panel] } }));
+      },
+
+      setNotification: (notification) => {
+        set({ notification });
       },
     })),
   );
