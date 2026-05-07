@@ -7,7 +7,7 @@
 // variants with Lucide icons land in commit 6.
 
 import clsx from 'clsx';
-import { type JSX, type MouseEvent, memo, useCallback, useMemo } from 'react';
+import { type JSX, type KeyboardEvent, type MouseEvent, memo, useCallback, useMemo } from 'react';
 
 import { CUSTOM_NODE_REGISTRY, type CustomNodeSpec } from '@/nodes/registry';
 import { selectNodeById } from '@/state/workflow/selectors';
@@ -35,6 +35,32 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
       selectNode(id);
     },
     [id, selectNode],
+  );
+
+  // Keyboard interactions per CLAUDE.md §4 accessibility:
+  //   - Delete / Backspace: remove the focused node (cascade-delete edges)
+  //   - Arrow Right / Down: focus the next node in insertion order (wraps)
+  //   - Arrow Left / Up:    focus the previous node (wraps)
+  // Enter / Space already fire onClick via browser-default button activation.
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        workflowStore.getState().removeNode(id);
+        return;
+      }
+      if (
+        event.key === 'ArrowRight' ||
+        event.key === 'ArrowDown' ||
+        event.key === 'ArrowLeft' ||
+        event.key === 'ArrowUp'
+      ) {
+        event.preventDefault();
+        const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 'next' : 'prev';
+        focusAdjacentNode(id, direction);
+      }
+    },
+    [id],
   );
 
   // Drag handler set — usePointerDrag wires setPointerCapture and rAF
@@ -77,6 +103,7 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
       data-selected={String(isSelected)}
       aria-label={ariaLabel}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
       onPointerDown={pointerHandlers.onPointerDown}
       onPointerMove={pointerHandlers.onPointerMove}
       onPointerUp={pointerHandlers.onPointerUp}
@@ -110,3 +137,15 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
 }
 
 export const Node = memo(NodeComponent);
+
+function focusAdjacentNode(currentId: string, direction: 'next' | 'prev'): void {
+  const ids = Object.keys(workflowStore.getState().nodes);
+  const currentIndex = ids.indexOf(currentId);
+  if (currentIndex === -1) return;
+  const offset = direction === 'next' ? 1 : -1;
+  const nextIndex = (currentIndex + offset + ids.length) % ids.length;
+  const nextId = ids[nextIndex];
+  if (nextId === undefined) return;
+  const target = document.querySelector(`[data-testid="node-${nextId}"]`);
+  if (target instanceof HTMLElement) target.focus();
+}
