@@ -16,6 +16,8 @@ import { useUiStore } from '@/state/ui/uiStore';
 import { usePointerDrag } from '@/utils/pointer';
 import type { NodePosition } from '@/state/workflow/types';
 
+import { Handle } from './Handle';
+
 interface NodeProps {
   id: string;
 }
@@ -132,6 +134,10 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
         {kindLabel}
       </span>
       <span className="text-sm font-medium">{node.data.label}</span>
+      {/* Connection handles. Start nodes only emit (output); end nodes
+          only receive (input); task and custom nodes have both. */}
+      {node.kind !== 'start' ? <Handle nodeId={id} type="input" /> : null}
+      {node.kind !== 'end' ? <Handle nodeId={id} type="output" /> : null}
     </button>
   );
 }

@@ -14,6 +14,7 @@ import { selectEdgeIds } from '@/state/workflow/selectors';
 import { workflowStore } from '@/state/workflow/instance';
 
 import { Edge } from './Edge';
+import { GhostEdge } from './GhostEdge';
 
 export function ConnectionLayer(): JSX.Element {
   const edgeIds = workflowStore(useShallow(selectEdgeIds));
@@ -27,6 +28,7 @@ export function ConnectionLayer(): JSX.Element {
       {edgeIds.map((id) => (
         <Edge key={id} id={id} />
       ))}
+      <GhostEdge />
     </svg>
   );
 }
