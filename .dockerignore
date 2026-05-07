@@ -1,0 +1,25 @@
+# Build inputs only — keep the image small.
+node_modules
+.git
+.github
+.husky
+.claude
+.vscode
+.idea
+coverage
+dist
+dist-ssr
+
+# Dev artifacts
+.env
+.env.local
+.env.*.local
+.playwright-mcp
+phase-*.png
+scenario-*.png
+*.log
+
+# OS
+.DS_Store
+*.swp
+*.swo

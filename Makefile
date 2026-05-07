@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev dev-server test build build-wc clean up docker-build docker-run
+.PHONY: help install dev dev-server test build build-wc clean up down docker-build docker-run
 
 help:  ## Show this help
 	@echo "floweave — make targets:"
@@ -30,17 +30,17 @@ build:  ## Production build (typecheck + vite build of the dev SPA)
 build-wc:  ## Build the embeddable Web Component bundle into dist-wc/
 	npm run build:wc
 
-clean:  ## Remove node_modules, dist, coverage, tsbuildinfo
-	rm -rf node_modules dist coverage .tsbuildinfo
+clean:  ## Remove node_modules, dist, dist-wc, coverage, tsbuildinfo
+	rm -rf node_modules dist dist-wc coverage .tsbuildinfo
 
-up:  ## Run the full stack (proxy + static) — Phase 9 deliverable
-	@echo "make up: not yet implemented — Docker compose lands in Phase 9 (see PLAN.md §6 Phase 9)."
-	@exit 1
+up:  ## Build and run the full stack (proxy + WC bundle + demo) on :3001
+	docker compose up --build
 
-docker-build:  ## Build the production Docker image — Phase 9 deliverable
-	@echo "make docker-build: not yet implemented — see PLAN.md §6 Phase 9."
-	@exit 1
+down:  ## Stop the compose stack
+	docker compose down
 
-docker-run:  ## Run the Docker image locally — Phase 9 deliverable
-	@echo "make docker-run: not yet implemented — see PLAN.md §6 Phase 9."
-	@exit 1
+docker-build:  ## Build the production Docker image (tag: floweave:dev)
+	docker build -t floweave:dev .
+
+docker-run:  ## Run the built image locally on :3001 (use after make docker-build)
+	docker run --rm -p 3001:3001 --env-file .env floweave:dev
