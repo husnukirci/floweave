@@ -96,6 +96,17 @@ export default tseslint.config(
     },
   },
 
+  // Zustand slice files: dynamic-key delete on `Record<id, T>` is the
+  // canonical inverse of dynamic-key assign per ADR-002 (Records over
+  // arrays). The rule exists to flag accidental dynamic-key deletion on
+  // typed objects; in slices it is intentional.
+  {
+    files: ['src/state/**/slices/*.ts'],
+    rules: {
+      '@typescript-eslint/no-dynamic-delete': 'off',
+    },
+  },
+
   // Prettier last to disable conflicting stylistic rules.
   prettier,
 );
