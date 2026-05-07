@@ -16,7 +16,9 @@ import type { StoreApi } from 'zustand';
 
 import type { WorkflowStoreState } from '@/state/workflow/storeState';
 
-import type { ToolResultBlock, ToolUseBlock } from './tools';
+import { applyToolCall } from './executor';
+import { buildSystemPrompt } from './systemPrompt';
+import { TOOL_SCHEMAS, type ToolResultBlock, type ToolUseBlock } from './tools';
 
 export const MAX_ITERATIONS_DEFAULT = 5;
 
@@ -67,11 +69,131 @@ export type AgentLoopResult =
       toolCalls: AppliedToolCall[];
     };
 
-export function runAgentLoop(_params: AgentLoopParams): Promise<AgentLoopResult> {
-  return Promise.resolve({
-    ok: false,
-    error: 'runAgentLoop: not implemented (stub for TDD test commit)',
-    iterations: 0,
-    toolCalls: [],
-  });
+function isTextBlock(block: ProxyContentBlock): block is { type: 'text'; text: string } {
+  return block.type === 'text';
+}
+
+function isToolUseBlock(block: ProxyContentBlock): block is ToolUseBlock {
+  return block.type === 'tool_use';
+}
+
+function joinText(blocks: ProxyContentBlock[]): string {
+  return blocks
+    .filter(isTextBlock)
+    .map((b) => b.text)
+    .join('\n');
+}
+
+function isAbortError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === 'AbortError') return true;
+  if (error instanceof Error) {
+    if (error.name === 'AbortError') return true;
+    if (error.message.toLowerCase().includes('abort')) return true;
+  }
+  return false;
+}
+
+export async function runAgentLoop(params: AgentLoopParams): Promise<AgentLoopResult> {
+  const {
+    userMessage,
+    previousMessages = [],
+    store,
+    endpoint,
+    signal,
+    maxIterations = MAX_ITERATIONS_DEFAULT,
+    fetchImpl = fetch,
+  } = params;
+
+  const toolCalls: AppliedToolCall[] = [];
+  const messages: ProxyMessage[] = [...previousMessages, { role: 'user', content: userMessage }];
+
+  for (let iteration = 1; iteration <= maxIterations; iteration += 1) {
+    if (signal?.aborted) {
+      return { ok: false, error: 'Aborted before iteration', iterations: iteration - 1, toolCalls };
+    }
+
+    // Build system prompt with the latest store state every iteration —
+    // the LLM should see the effects of its own previous tool calls.
+    const system = buildSystemPrompt(store.getState());
+
+    let response: ProxyResponse;
+    try {
+      const httpResp = await fetchImpl(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages, system, tools: TOOL_SCHEMAS }),
+        signal,
+      });
+      if (!httpResp.ok) {
+        return {
+          ok: false,
+          error: `Proxy responded with status ${String(httpResp.status)}`,
+          iterations: iteration,
+          toolCalls,
+        };
+      }
+      // Trust the proxy contract — the server validates and shapes the
+      // payload before forwarding it. Mis-shaped responses surface as
+      // runtime errors caught below.
+      response = (await httpResp.json()) as ProxyResponse;
+    } catch (caught: unknown) {
+      if (isAbortError(caught)) {
+        return { ok: false, error: 'Aborted', iterations: iteration, toolCalls };
+      }
+      const message = caught instanceof Error ? caught.message : String(caught);
+      return {
+        ok: false,
+        error: `Network error: ${message}`,
+        iterations: iteration,
+        toolCalls,
+      };
+    }
+
+    const toolUseBlocks = response.content.filter(isToolUseBlock);
+
+    if (toolUseBlocks.length === 0) {
+      return {
+        ok: true,
+        finalText: joinText(response.content),
+        iterations: iteration,
+        toolCalls,
+        stopReason: 'end_turn',
+      };
+    }
+
+    const toolResults: ToolResultBlock[] = [];
+    for (const toolUse of toolUseBlocks) {
+      const result = applyToolCall(toolUse, store);
+      toolResults.push(result);
+      toolCalls.push({
+        name: toolUse.name,
+        input: toolUse.input,
+        isError: result.is_error === true,
+        resultContent: result.content,
+      });
+    }
+
+    // Append the assistant turn (its tool_use blocks) and the user
+    // turn (the matching tool_results) so the next iteration's prompt
+    // mirrors the real Messages API conversation shape.
+    messages.push({ role: 'assistant', content: response.content });
+    messages.push({ role: 'user', content: toolResults });
+  }
+
+  // Hit the iteration cap with tool_use still pending. Synthesize a
+  // final text from the last assistant text block, or a generic fallback.
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+  const finalText =
+    lastAssistant && typeof lastAssistant.content !== 'string'
+      ? joinText(lastAssistant.content) ||
+        'Reached the maximum number of iterations without a final answer.'
+      : 'Reached the maximum number of iterations without a final answer.';
+
+  return {
+    ok: true,
+    finalText,
+    iterations: maxIterations,
+    toolCalls,
+    stopReason: 'max_iterations',
+  };
 }
