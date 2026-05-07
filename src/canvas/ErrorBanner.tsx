@@ -17,15 +17,20 @@ export function ErrorBanner(): JSX.Element | null {
   const notification = useUiStore((s) => s.notification);
   const setNotification = useUiStore((s) => s.setNotification);
 
+  // CONNECTING hints are sticky — they describe an interactive mode rather
+  // than a one-shot error, so they should remain until the user finishes
+  // or cancels the connection. Other notifications auto-dismiss.
+  const isConnectingHint = notification?.code === 'CONNECTING';
+
   useEffect(() => {
-    if (!notification) return undefined;
+    if (!notification || isConnectingHint) return undefined;
     const handle = setTimeout(() => {
       setNotification(null);
     }, AUTO_DISMISS_MS);
     return () => {
       clearTimeout(handle);
     };
-  }, [notification, setNotification]);
+  }, [notification, isConnectingHint, setNotification]);
 
   if (!notification) return null;
 
@@ -34,7 +39,11 @@ export function ErrorBanner(): JSX.Element | null {
       role="status"
       aria-live="polite"
       data-testid="error-banner"
-      className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-md bg-rose-100 px-4 py-2 text-sm text-rose-900 shadow-md ring-1 ring-rose-300"
+      className={
+        isConnectingHint
+          ? 'pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-md bg-amber-100 px-4 py-2 text-sm text-amber-900 shadow-md ring-1 ring-amber-300'
+          : 'pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-md bg-rose-100 px-4 py-2 text-sm text-rose-900 shadow-md ring-1 ring-rose-300'
+      }
     >
       {notification.message}
     </div>

@@ -138,6 +138,47 @@ describe('Node', () => {
     });
   });
 
+  describe('keyboard connection mode', () => {
+    it("'c' on a focused node enters connecting state", () => {
+      const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      if (!a.ok) throw new Error('setup');
+      const { getByTestId } = render(<Node id={a.value.id} />);
+
+      fireEvent.keyDown(getByTestId(`node-${a.value.id}`), { key: 'c' });
+
+      expect(useUiStore.getState().isConnecting).toBe(true);
+      expect(useUiStore.getState().connectingFromNodeId).toBe(a.value.id);
+    });
+
+    it('Escape during connecting cancels', () => {
+      const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      if (!a.ok) throw new Error('setup');
+      useUiStore.setState({ isConnecting: true, connectingFromNodeId: a.value.id });
+      const { getByTestId } = render(<Node id={a.value.id} />);
+
+      fireEvent.keyDown(getByTestId(`node-${a.value.id}`), { key: 'Escape' });
+
+      expect(useUiStore.getState().isConnecting).toBe(false);
+      expect(useUiStore.getState().connectingFromNodeId).toBeNull();
+    });
+
+    it('Enter on a target node while connecting creates the edge', () => {
+      const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      const b = workflowStore.getState().addNode({ kind: 'task', position: { x: 200, y: 0 } });
+      if (!a.ok || !b.ok) throw new Error('setup');
+      useUiStore.setState({ isConnecting: true, connectingFromNodeId: a.value.id });
+      const { getByTestId } = render(<Node id={b.value.id} />);
+
+      fireEvent.keyDown(getByTestId(`node-${b.value.id}`), { key: 'Enter' });
+
+      const edges = Object.values(workflowStore.getState().edges);
+      expect(edges).toHaveLength(1);
+      expect(edges[0]?.source).toBe(a.value.id);
+      expect(edges[0]?.target).toBe(b.value.id);
+      expect(useUiStore.getState().isConnecting).toBe(false);
+    });
+  });
+
   it('positions the node via style.left/top from node.position', () => {
     const result = workflowStore.getState().addNode({
       kind: 'task',

@@ -31,6 +31,10 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
   const isSelected = useUiStore((s) => s.selectedNodeId === id);
   const selectNode = useUiStore((s) => s.selectNode);
 
+  const isConnecting = useUiStore((s) => s.isConnecting);
+  const connectingFromNodeId = useUiStore((s) => s.connectingFromNodeId);
+  const isConnectingFromMe = isConnecting && connectingFromNodeId === id;
+
   const handleClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation();
@@ -43,9 +47,58 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
   //   - Delete / Backspace: remove the focused node (cascade-delete edges)
   //   - Arrow Right / Down: focus the next node in insertion order (wraps)
   //   - Arrow Left / Up:    focus the previous node (wraps)
-  // Enter / Space already fire onClick via browser-default button activation.
+  //   - c: enter keyboard connection mode from this node (PLAN.md §6 Phase 3)
+  //   - Enter (while connecting): connect from the source to this node
+  //   - Escape (while connecting): cancel
+  // Selection via keyboard happens through the browser's default Enter/Space
+  // → click on the focused button.
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>) => {
+      const ui = useUiStore.getState();
+
+      // Connection-mode keys take priority when isConnecting is active.
+      if (ui.isConnecting) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          ui.finishConnecting();
+          return;
+        }
+        if (event.key === 'Enter') {
+          // Connect source → this node.
+          const source = ui.connectingFromNodeId;
+          if (source && source !== id) {
+            event.preventDefault();
+            const result = workflowStore.getState().connectNodes({ source, target: id });
+            if (!result.ok) {
+              const reason = result.error.details?.reason;
+              ui.setNotification({
+                code: result.error.code,
+                message: friendlyConnectionError(typeof reason === 'string' ? reason : null),
+              });
+            }
+            ui.finishConnecting();
+            return;
+          }
+        }
+        // Allow normal navigation/escape during connect; fall through.
+      }
+
+      if (event.key === 'c' || event.key === 'C') {
+        // Start nodes can't receive incoming connections, so initiating
+        // FROM end (which can't be a source) is also disallowed. The
+        // store will reject these, but suppress the keystroke for
+        // end-kind nodes to avoid a confusing UI flash.
+        const node = workflowStore.getState().nodes[id];
+        if (!node || node.kind === 'end') return;
+        event.preventDefault();
+        ui.startConnecting(id);
+        ui.setNotification({
+          code: 'CONNECTING',
+          message: `Connecting from ${node.data.label}. Press Enter on a target, Escape to cancel.`,
+        });
+        return;
+      }
+
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
         workflowStore.getState().removeNode(id);
@@ -120,6 +173,7 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
         node.kind === 'task' && 'border-blue-400 bg-blue-50 text-blue-900',
         customSpec && [customSpec.borderClass, customSpec.bgClass, customSpec.textClass],
         isSelected && 'ring-2 ring-blue-500 ring-offset-2',
+        isConnectingFromMe && 'ring-2 ring-amber-400 ring-offset-2',
       )}
       style={{
         // Dynamic position values — cannot be a static Tailwind class.
@@ -154,4 +208,19 @@ function focusAdjacentNode(currentId: string, direction: 'next' | 'prev'): void 
   if (nextId === undefined) return;
   const target = document.querySelector(`[data-testid="node-${nextId}"]`);
   if (target instanceof HTMLElement) target.focus();
+}
+
+function friendlyConnectionError(reason: string | null): string {
+  switch (reason) {
+    case 'self-loop':
+      return "A node can't connect to itself.";
+    case 'duplicate-edge':
+      return 'These nodes are already connected.';
+    case 'start-cannot-be-target':
+      return "Start nodes can't receive incoming connections.";
+    case 'end-cannot-be-source':
+      return "End nodes can't have outgoing connections.";
+    default:
+      return 'Connection rejected.';
+  }
 }
