@@ -4,6 +4,20 @@ This file is read by Claude Code at the start of every session. It is the contra
 
 ---
 
+## 0. Commands
+
+| Action                                 | Command        |
+| -------------------------------------- | -------------- |
+| Install + git hooks                    | `make install` |
+| Dev server                             | `make dev`     |
+| Local gates (typecheck + lint + tests) | `make test`    |
+| Production build                       | `make build`   |
+| List all targets                       | `make help`    |
+
+Run from the repo root. `make help` is the canonical list — anything below is a convenience cross-reference.
+
+---
+
 ## 1. Project context
 
 This is a reusable, embeddable Web Component implementing a BPMN-like workflow editor with an integrated AI chatbot for natural-language workflow editing. Target use case: insurance back-office tools, claims dashboards, internal admin UIs where non-technical users describe processes and the editor materializes them.
@@ -21,6 +35,8 @@ Read these in this order at session start:
 3. **docs/decisions.md** — full reasoning behind every locked decision (23 ADRs)
 
 When user instructions conflict with these documents, ask before proceeding.
+
+Beyond these three, durable per-user feedback lives in `~/.claude/projects/-Users-<user>-Developer-floweave/memory/` — preferences captured across sessions. When in conflict, CLAUDE.md wins; memory captures user preferences not codified here.
 
 ---
 
@@ -62,6 +78,9 @@ These are absolute. Violating them is a defect, not a stylistic preference.
 - **rAF throttling** on any handler that fires from pointermove or scroll/resize.
 - **`AbortController`** for every fetch call; respect cancellation.
 - **All async functions handle errors** explicitly. Unhandled promise rejections are bugs.
+- **Never commit to `main`.** Always work on a feature branch and open a PR (`gh pr create`). Never run `git merge` or `gh pr merge` — merging is the user's call, not Claude's.
+- **No `Co-Authored-By: Claude ...` trailers** on commit messages or PR bodies. Project-level AI usage is documented in `docs/ai-workflow.md`; per-commit attribution is not wanted.
+- **No external positioning.** No company names, no "challenge"/"assignment"/"evaluation"/"interview"/"submission"/"reimbursement" framing in code, docs, comments, commit messages, or PR bodies. The repo reads as a real product.
 
 ---
 
@@ -163,6 +182,7 @@ docs/                 # decisions, ai-workflow, ai-prompts, api, etc.
 ### Imports
 
 Order:
+
 1. External (React, Zustand, etc.)
 2. Internal alias (`@/state/...`, `@/canvas/...`)
 3. Relative (`./Node`, `../utils/geometry`)
@@ -176,34 +196,47 @@ Never deep-import across module boundaries. If `panels/` needs something from `c
 These can be installed without asking:
 
 **Runtime (client):**
+
 - `react`, `react-dom`
 - `zustand`, `immer`, `zundo`
 - `lucide-react`, `clsx`, `nanoid`
 
 **Runtime (server):**
+
 - `hono`, `@hono/node-server`
 - `@anthropic-ai/sdk`
 - `pino` (or just console for simpler logging)
 
 **Build:**
+
 - `vite`, `@vitejs/plugin-react`, `typescript`
-- `tailwindcss`, `postcss`, `autoprefixer`
+- `tailwindcss` (v4 — CSS-first; no `tailwind.config.js`, no `postcss.config.js`, no `autoprefixer`)
+- `@tailwindcss/vite` (Tailwind v4's official Vite plugin)
 
 **Tooling:**
+
 - `eslint`, `@typescript-eslint/*`, `eslint-plugin-react`, `eslint-plugin-react-hooks`, `eslint-plugin-jsx-a11y`
 - `prettier`
 - `husky`, `lint-staged`
 - `@commitlint/cli`, `@commitlint/config-conventional`
 
 **Testing:**
-- `vitest`, `@vitest/coverage-v8`
+
+- `vitest` (v4+), `@vitest/coverage-v8` (matches vitest version)
 - `@testing-library/react`, `@testing-library/user-event`, `@testing-library/jest-dom`
-- `happy-dom`
+- `happy-dom` (v20+ — DOM env, lighter than jsdom)
 - `msw`
 - `vitest-axe`
 - `@playwright/test` (Tier 2/3 only)
 
 Anything else: **ask before installing.** Justify the choice in a comment in the PR.
+
+### Version pins worth knowing
+
+- **ESLint** stays on `^9.x` (NOT v10) until `eslint-plugin-jsx-a11y` ships a v10-compatible peer.
+- **Tailwind** is v4 (CSS-first config). No `tailwind.config.js`, no `postcss.config.js` — they should not be added.
+- **TypeScript** is v6+. The deprecated `baseUrl` is removed; path aliases use `"./src/*"` form (with leading `./`) and resolve relative to the tsconfig file.
+- **lint-staged** ≥ 17 requires Git ≥ 2.32 — non-issue on CI; may bite contributors with old local git binaries (e.g. legacy `/usr/local/bin/git` symlinks shadowing modern Apple/brew git).
 
 ---
 
@@ -230,7 +263,7 @@ Anything else: **ask before installing.** Justify the choice in a comment in the
 
 ### Comments
 
-- Comments explain *why*, never *what*. The code shows what.
+- Comments explain _why_, never _what_. The code shows what.
 - JSDoc on exported public APIs (Web Component methods, store action signatures).
 - No block comments for "section headers" inside files. If a file has sections, it should probably be multiple files.
 
@@ -300,12 +333,14 @@ After every implementation chunk, before committing, produce a self-review repor
 ### Universal rubric (every chunk)
 
 **Compilation & quality gates**
+
 - [ ] `npm run typecheck` — zero errors, zero warnings
 - [ ] `npm run lint` — zero errors, zero warnings (warnings hide real issues)
 - [ ] `npm test` — all pass, no `.skip` or `.only`
 - [ ] `npm run build` — production build succeeds
 
 **Forbidden patterns scan**
+
 - [ ] No `any`, `as unknown as`, non-null assertions without justification
 - [ ] No `dangerouslyAllowBrowser`, `dangerouslySetInnerHTML`
 - [ ] No `console.log` in source (only `.warn`/`.error` or dev-gated)
@@ -315,6 +350,7 @@ After every implementation chunk, before committing, produce a self-review repor
 - [ ] No TODO/FIXME/commented-out code
 
 **Architecture invariants**
+
 - [ ] Store mutations only via actions
 - [ ] LLM batches via `applyMutations`
 - [ ] Cross-store communication follows one of three patterns
@@ -322,12 +358,14 @@ After every implementation chunk, before committing, produce a self-review repor
 - [ ] State that should be local is local (not in Zustand)
 
 **Performance**
+
 - [ ] List components are `React.memo`'d
 - [ ] No inline objects/arrays passed to memoized components
 - [ ] Selectors subscribe to minimum slice
 - [ ] Hot paths rAF-throttled
 
 **Tests**
+
 - [ ] New store actions have tests
 - [ ] New validators have tests
 - [ ] New LLM tools have executor tests
@@ -335,6 +373,7 @@ After every implementation chunk, before committing, produce a self-review repor
 - [ ] Coverage thresholds still pass
 
 **Accessibility**
+
 - [ ] New interactive elements keyboard-reachable
 - [ ] Focus rings visible
 - [ ] ARIA roles/labels on new components
@@ -342,10 +381,11 @@ After every implementation chunk, before committing, produce a self-review repor
 - [ ] `prefers-reduced-motion` respected on new animations
 
 **Commit hygiene**
+
 - [ ] Diff contains only files relevant to this chunk
 - [ ] No `.env`, `.DS_Store`, IDE configs
 - [ ] Conventional commit message with valid scope
-- [ ] Body explains *why* if non-obvious
+- [ ] Body explains _why_ if non-obvious
 
 ### Phase-specific rubric
 
@@ -370,6 +410,7 @@ Produce a markdown report:
 ## Self-Review: <phase or chunk name>
 
 ### Universal rubric
+
 - ✅ typecheck: clean
 - ✅ lint: clean (0 warnings)
 - ⚠️ tests: 47 pass, 0 fail (added 12 new tests for cascade delete)
@@ -377,15 +418,18 @@ Produce a markdown report:
 - ...
 
 ### Phase-specific rubric
+
 - ✅ cascade delete tested in both directions
 - ✅ all 4 connection validation rules surfaced as structured errors
 - ...
 
 ### Adversarial review (if applicable)
+
 - Concern: `applyMutations` doesn't validate the mutation kind before dispatching. Risk: invalid mutations from LLM crash the store. Suggest: add validation at the entry point.
 - ...
 
 ### Notes
+
 - Skipped: animated edge appearance (Tier 2). Will revisit in Phase 9.
 - Discovered: ResizeObserver fires twice on initial mount. Investigated, expected behavior, no action needed.
 ```
@@ -410,7 +454,7 @@ Conventional Commits, enforced by commitlint:
 
 **Types:** `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `chore`, `build`, `ci`.
 
-**Scopes:** `store`, `canvas`, `panels`, `llm`, `wc`, `infra`, `deps`, `a11y`, `nodes`, `utils`, `state`, `server`, `demo`.
+**Scopes:** `store`, `canvas`, `panels`, `llm`, `wc`, `infra`, `deps`, `a11y`, `nodes`, `utils`, `state`, `server`, `demo`, `tooling`, `claude`, `ci`. Empty scope is allowed (e.g. `chore: scaffold ...`). The full enforced list lives in `commitlint.config.js`.
 
 **Subject:** imperative mood, lowercase, no period, ≤72 chars. "add cascade delete to nodes slice" not "Added Cascade Delete to Nodes Slice."
 
