@@ -1,42 +1,34 @@
 // Agent loop — orchestrates a single chat turn against the LLM proxy.
 //
 // Per ADR-010 the loop has a hard cap of 5 iterations. Each iteration:
-//   1. POST {messages, system, tools} to the proxy endpoint.
+//   1. postChat({messages, system, tools}) to the proxy endpoint.
 //   2. If the response has no tool_use blocks, extract the assistant
 //      text and return.
-//   3. Otherwise run each tool_use through applyToolCall, append the
-//      assistant message + a user message of tool_results, loop.
+//   3. Otherwise run each tool_use through buildToolMutations, apply
+//      every turn's mutations through ONE applyMutations() call
+//      (CLAUDE.md §4), and append the assistant message + a user
+//      message of tool_results before looping.
 //
-// The loop honors AbortController, surfaces network/server errors
-// without throwing, and serializes the current workflow state into the
-// system prompt on every iteration so the LLM always sees the latest
-// state after applying its own tool calls.
+// The HTTP layer (fetch, abort detection, network/non-2xx error
+// shaping) lives in client.ts. The loop honors AbortController and
+// rebuilds the system prompt on every iteration so the LLM always
+// sees the latest state after applying its own tool calls.
 
 import type { StoreApi } from 'zustand';
 
 import type { WorkflowStoreState } from '@/state/workflow/storeState';
-
 import type { Mutation } from '@/state/workflow/types';
 
+import { postChat, type ProxyContentBlock, type ProxyMessage } from './client';
 import { buildToolMutations } from './executor';
 import { buildSystemPrompt } from './systemPrompt';
 import { TOOL_SCHEMAS, type ToolResultBlock, type ToolUseBlock } from './tools';
 
 export const MAX_ITERATIONS_DEFAULT = 5;
 
-// Wire-format content blocks shared with the proxy. Mirrors the subset
-// of Anthropic's Messages API we actually consume/produce.
-export type ProxyContentBlock = { type: 'text'; text: string } | ToolUseBlock | ToolResultBlock;
-
-export interface ProxyMessage {
-  role: 'user' | 'assistant';
-  content: string | ProxyContentBlock[];
-}
-
-export interface ProxyResponse {
-  content: ProxyContentBlock[];
-  stop_reason?: 'end_turn' | 'tool_use' | 'max_tokens' | 'stop_sequence';
-}
+// Re-export wire types so callers (Phase 7 chat panel) can import them
+// from this module without depending on client.ts directly.
+export type { ProxyContentBlock, ProxyMessage, ProxyResponse } from './client';
 
 export interface AppliedToolCall {
   name: string;
@@ -84,15 +76,6 @@ function joinText(blocks: ProxyContentBlock[]): string {
     .filter(isTextBlock)
     .map((b) => b.text)
     .join('\n');
-}
-
-function isAbortError(error: unknown): boolean {
-  if (error instanceof DOMException && error.name === 'AbortError') return true;
-  if (error instanceof Error) {
-    if (error.name === 'AbortError') return true;
-    if (error.message.toLowerCase().includes('abort')) return true;
-  }
-  return false;
 }
 
 // Builds mutations for every tool_use in a turn, applies them through
@@ -208,38 +191,16 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<AgentLoopRe
     // the LLM should see the effects of its own previous tool calls.
     const system = buildSystemPrompt(store.getState());
 
-    let response: ProxyResponse;
-    try {
-      const httpResp = await fetchImpl(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, system, tools: TOOL_SCHEMAS }),
-        signal,
-      });
-      if (!httpResp.ok) {
-        return {
-          ok: false,
-          error: `Proxy responded with status ${String(httpResp.status)}`,
-          iterations: iteration,
-          toolCalls,
-        };
-      }
-      // Trust the proxy contract — the server validates and shapes the
-      // payload before forwarding it. Mis-shaped responses surface as
-      // runtime errors caught below.
-      response = (await httpResp.json()) as ProxyResponse;
-    } catch (caught: unknown) {
-      if (isAbortError(caught)) {
-        return { ok: false, error: 'Aborted', iterations: iteration, toolCalls };
-      }
-      const message = caught instanceof Error ? caught.message : String(caught);
-      return {
-        ok: false,
-        error: `Network error: ${message}`,
-        iterations: iteration,
-        toolCalls,
-      };
+    const httpResult = await postChat({
+      endpoint,
+      body: { messages, system, tools: TOOL_SCHEMAS },
+      signal,
+      fetchImpl,
+    });
+    if (!httpResult.ok) {
+      return { ok: false, error: httpResult.error, iterations: iteration, toolCalls };
     }
+    const response = httpResult.response;
 
     const toolUseBlocks = response.content.filter(isToolUseBlock);
 
