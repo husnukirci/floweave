@@ -35,3 +35,4 @@ yarn-error.log*
 # Playwright MCP local verification artifacts (snapshots, screenshots, logs)
 .playwright-mcp/
 phase-*-commit-*.png
+scenario-*.png
