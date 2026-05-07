@@ -8,6 +8,7 @@
 import { nanoid } from 'nanoid';
 import type { StateCreator } from 'zustand';
 
+import type { WorkflowStoreState } from '../storeState';
 import type {
   AddNodeInput,
   NodeData,
@@ -62,7 +63,7 @@ function buildNodeFromInput(input: AddNodeInput): WorkflowNode {
 }
 
 export const createNodesSlice: StateCreator<
-  NodesSlice,
+  WorkflowStoreState,
   [['zustand/immer', never]],
   [],
   NodesSlice
