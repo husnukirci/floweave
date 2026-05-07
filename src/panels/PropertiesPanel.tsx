@@ -11,6 +11,8 @@ import {
   type ChangeEvent,
   type JSX,
   type KeyboardEvent as ReactKeyboardEvent,
+  useEffect,
+  useRef,
   useState,
 } from 'react';
 
@@ -36,7 +38,18 @@ export function PropertiesPanel({ nodeId }: PropertiesPanelProps): JSX.Element |
 
 function PropertiesPanelInner({ node }: { node: WorkflowNode }): JSX.Element {
   const [label, setLabel] = useState<string>(node.data.label);
+  const labelInputRef = useRef<HTMLInputElement>(null);
   const nodeId = node.id;
+
+  // Move keyboard focus to the label input when the panel opens (i.e.
+  // each time a different node is selected — the parent keys this
+  // component on nodeId so this effect fires once per selection).
+  useEffect(() => {
+    const input = labelInputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, []);
 
   const commitLabel = (): void => {
     if (label === node.data.label) return;
@@ -102,6 +115,7 @@ function PropertiesPanelInner({ node }: { node: WorkflowNode }): JSX.Element {
           id="properties-label-input"
           data-testid="properties-label-input"
           type="text"
+          ref={labelInputRef}
           value={label}
           onChange={handleLabelChange}
           onBlur={commitLabel}

@@ -41,6 +41,22 @@ describe('VariablesEditor', () => {
     expect(queryAllByTestId(/^variable-row-/).length).toBe(0);
   });
 
+  it('renders visible Key / Type / Value column headers when rows exist', () => {
+    const id = setupNodeWithVariables({ a: '1' });
+    const { getByTestId } = render(<VariablesEditor nodeId={id} />);
+
+    expect(getByTestId('variables-headers')).toHaveTextContent(/key/i);
+    expect(getByTestId('variables-headers')).toHaveTextContent(/type/i);
+    expect(getByTestId('variables-headers')).toHaveTextContent(/value/i);
+  });
+
+  it('hides column headers when no variables exist', () => {
+    const id = setupNodeWithVariables({});
+    const { queryByTestId } = render(<VariablesEditor nodeId={id} />);
+
+    expect(queryByTestId('variables-headers')).toBeNull();
+  });
+
   it('clicking Add Variable creates a new empty row in local state', () => {
     const id = setupNodeWithVariables({});
     const { getByTestId, getAllByTestId } = render(<VariablesEditor nodeId={id} />);
