@@ -107,6 +107,16 @@ export default tseslint.config(
     },
   },
 
+  // Server source: structured logs go to stdout (Twelve-Factor). The
+  // logger emits via console.log inline with an eslint-disable comment;
+  // no other console usage is permitted here either.
+  {
+    files: ['server/**/*.ts'],
+    rules: {
+      'no-console': ['error', { allow: ['warn', 'error', 'log'] }],
+    },
+  },
+
   // Prettier last to disable conflicting stylistic rules.
   prettier,
 );
