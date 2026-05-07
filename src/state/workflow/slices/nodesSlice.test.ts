@@ -1,18 +1,12 @@
-import { create, type StoreApi, type UseBoundStore } from 'zustand';
-import { immer } from 'zustand/middleware/immer';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { createNodesSlice, type NodesSlice } from './nodesSlice';
-
-type TestStore = UseBoundStore<StoreApi<NodesSlice>>;
-
-const createTestStore = (): TestStore => create<NodesSlice>()(immer(createNodesSlice));
+import { createTestWorkflowStore, type TestWorkflowStore } from '@/test/factories';
 
 describe('nodesSlice', () => {
-  let store: TestStore;
+  let store: TestWorkflowStore;
 
   beforeEach(() => {
-    store = createTestStore();
+    store = createTestWorkflowStore();
   });
 
   describe('addNode', () => {
@@ -161,6 +155,56 @@ describe('nodesSlice', () => {
       expect(result.error.code).toBe('NODE_NOT_FOUND');
     });
 
-    // Cascade-delete tests with edges land in commit 3 (test edges + cascade).
+    // Cascade tests (require edgesSlice impl in commit 4 to pass).
+
+    it('cascades to delete edges where the node is the source', () => {
+      const a = store.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      const b = store.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      if (!a.ok || !b.ok) throw new Error('setup failed');
+      const edge = store.getState().connectNodes({ source: a.value.id, target: b.value.id });
+      if (!edge.ok) throw new Error('setup failed');
+
+      const result = store.getState().removeNode(a.value.id);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.removedEdgeIds).toContain(edge.value.id);
+      expect(store.getState().edges[edge.value.id]).toBeUndefined();
+    });
+
+    it('cascades to delete edges where the node is the target', () => {
+      const a = store.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      const b = store.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      if (!a.ok || !b.ok) throw new Error('setup failed');
+      const edge = store.getState().connectNodes({ source: a.value.id, target: b.value.id });
+      if (!edge.ok) throw new Error('setup failed');
+
+      const result = store.getState().removeNode(b.value.id);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.removedEdgeIds).toContain(edge.value.id);
+      expect(store.getState().edges[edge.value.id]).toBeUndefined();
+    });
+
+    it('cascades incoming and outgoing edges in a single removal', () => {
+      const a = store.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      const hub = store.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      const c = store.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      if (!a.ok || !hub.ok || !c.ok) throw new Error('setup failed');
+      const incoming = store.getState().connectNodes({ source: a.value.id, target: hub.value.id });
+      const outgoing = store.getState().connectNodes({ source: hub.value.id, target: c.value.id });
+      if (!incoming.ok || !outgoing.ok) throw new Error('setup failed');
+
+      const result = store.getState().removeNode(hub.value.id);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect([...result.value.removedEdgeIds].sort()).toEqual(
+        [incoming.value.id, outgoing.value.id].sort(),
+      );
+      expect(store.getState().edges[incoming.value.id]).toBeUndefined();
+      expect(store.getState().edges[outgoing.value.id]).toBeUndefined();
+    });
   });
 });

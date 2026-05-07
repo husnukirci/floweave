@@ -4,7 +4,12 @@
 // keep the test focused on the behaviour under test.
 
 import { nanoid } from 'nanoid';
+import { create, type StoreApi, type UseBoundStore } from 'zustand';
+import { immer } from 'zustand/middleware/immer';
 
+import { createEdgesSlice } from '@/state/workflow/slices/edgesSlice';
+import { createNodesSlice } from '@/state/workflow/slices/nodesSlice';
+import type { WorkflowStoreState } from '@/state/workflow/storeState';
 import type {
   CustomNodeType,
   NodeData,
@@ -14,6 +19,20 @@ import type {
   WorkflowNode,
   WorkflowState,
 } from '@/state/workflow/types';
+
+export type TestWorkflowStore = UseBoundStore<StoreApi<WorkflowStoreState>>;
+
+// Composes nodes + edges slices for tests that need cross-slice behaviour
+// (notably removeNode cascade and connectNodes). Use directly in test
+// setup; the real workflowStore (commit 7) adds middleware + IO slice.
+export function createTestWorkflowStore(): TestWorkflowStore {
+  return create<WorkflowStoreState>()(
+    immer((...args) => ({
+      ...createNodesSlice(...args),
+      ...createEdgesSlice(...args),
+    })),
+  );
+}
 
 export interface BuildNodeOverrides {
   id?: string;
