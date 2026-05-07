@@ -29,6 +29,21 @@ function getCanvasContentRect(): DOMRect | null {
   return el ? el.getBoundingClientRect() : null;
 }
 
+function friendlyConnectionError(reason: string | null): string {
+  switch (reason) {
+    case 'self-loop':
+      return "A node can't connect to itself.";
+    case 'duplicate-edge':
+      return 'These nodes are already connected.';
+    case 'start-cannot-be-target':
+      return "Start nodes can't receive incoming connections.";
+    case 'end-cannot-be-source':
+      return "End nodes can't have outgoing connections.";
+    default:
+      return 'Connection rejected.';
+  }
+}
+
 // Convert a screen-space pointer position to world coordinates relative
 // to the canvas content layer. The content layer's bounding rect already
 // accounts for the viewport translate, so a simple subtraction suffices.
@@ -71,8 +86,11 @@ export function Handle({ nodeId, type }: HandleProps): JSX.Element {
             .getState()
             .connectNodes({ source: data.sourceNodeId, target: targetNodeId });
           if (!result.ok) {
-            // Tier 1: log the rejection. Inline error UI lands in commit 4.
-            console.warn(`connectNodes: ${result.error.code}`, result.error.details);
+            const reason = result.error.details?.reason;
+            useUiStore.getState().setNotification({
+              code: result.error.code,
+              message: friendlyConnectionError(typeof reason === 'string' ? reason : null),
+            });
           }
         }
         finishConnecting();

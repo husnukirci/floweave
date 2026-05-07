@@ -2,28 +2,26 @@
 // only to source and target node positions per CLAUDE.md §4: moving an
 // unrelated node never re-renders unrelated edges.
 //
-// Caller is responsible for wrapping <Edge /> in an SVG element
-// (ConnectionLayer does this).
-//
-// Visual styling here is the Tier 1 baseline (neutral stroke, arrow-
-// head marker added in a later commit). Edge selection + deletion lands
-// in commit 4; keyboard connection mode in commit 5.
+// Two stacked paths so a thin visible line still has a comfortable hit
+// target (CLAUDE.md §4: hit-padding distinct from visual stroke):
+//   - The bottom path is transparent, thick, pointer-events="stroke"
+//   - The top path is the visible thin stroke, pointer-events="none"
+// Click on the wide invisible stroke selects the edge; Canvas's keydown
+// listener handles Delete on the selected edge.
 
-import { type JSX, memo } from 'react';
+import clsx from 'clsx';
+import { type JSX, type MouseEvent, memo, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { selectEdgeEndpoints } from '@/state/workflow/selectors';
 import { workflowStore } from '@/state/workflow/instance';
+import { useUiStore } from '@/state/ui/uiStore';
 import { bezierPath } from '@/utils/bezier';
 
 interface EdgeProps {
   id: string;
 }
 
-// Where the path connects on the source/target node card. Nodes are
-// rendered as ~140×56 cards positioned at their top-left corner. For a
-// left-to-right flow, the path starts at the right-mid point of the
-// source and ends at the left-mid point of the target.
 const NODE_WIDTH = 140;
 const NODE_HEIGHT = 56;
 
@@ -39,6 +37,16 @@ function EdgeComponent({ id }: EdgeProps): JSX.Element | null {
   const { source, target, sourceLabel, targetLabel } = workflowStore(
     useShallow(selectEdgeEndpoints(id)),
   );
+  const isSelected = useUiStore((s) => s.selectedEdgeId === id);
+  const selectEdge = useUiStore((s) => s.selectEdge);
+
+  const handleClick = useCallback(
+    (event: MouseEvent<SVGGElement>) => {
+      event.stopPropagation();
+      selectEdge(id);
+    },
+    [id, selectEdge],
+  );
 
   if (!source || !target) return null;
 
@@ -46,17 +54,36 @@ function EdgeComponent({ id }: EdgeProps): JSX.Element | null {
   const ariaLabel = `Edge from ${sourceLabel} to ${targetLabel}`;
 
   return (
-    <path
-      id={`edge-${id}`}
+    <g
       data-testid={`edge-${id}`}
+      role="button"
+      tabIndex={0}
       aria-label={ariaLabel}
-      role="img"
-      d={d}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      className="text-neutral-400"
-    />
+      aria-pressed={isSelected}
+      data-selected={String(isSelected)}
+      onClick={handleClick}
+      className="cursor-pointer focus:outline-none"
+      style={{ pointerEvents: 'visiblePainted' }}
+    >
+      {/* Wide invisible hit target so 2px lines are still easy to click */}
+      <path
+        d={d}
+        stroke="transparent"
+        strokeWidth={20}
+        fill="none"
+        style={{ pointerEvents: 'stroke' }}
+      />
+      {/* Visible stroke — thicker + accent colour when selected */}
+      <path
+        id={`edge-${id}`}
+        d={d}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={isSelected ? 3 : 2}
+        className={clsx('transition-colors', isSelected ? 'text-blue-500' : 'text-neutral-400')}
+        style={{ pointerEvents: 'none' }}
+      />
+    </g>
   );
 }
 

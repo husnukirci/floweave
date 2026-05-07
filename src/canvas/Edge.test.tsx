@@ -62,17 +62,13 @@ describe('Edge', () => {
     expect(container.querySelector('path')).toBeNull();
   });
 
-  it('exposes an aria-describedby-friendly description for connected nodes', () => {
+  it('exposes a role and aria-label for screen readers', () => {
     const { edgeId } = setupWorkflow();
     const { container } = renderEdgeIn(edgeId);
-    const path = container.querySelector('path');
-    // Edge should expose either an aria-label or be referenced by an
-    // aria-describedby on the path/group; checking the role/label approach.
-    const accessibleId =
-      path?.getAttribute('aria-label') ??
-      path?.getAttribute('id') ??
-      container.querySelector('[role="presentation"]')?.id;
-    expect(accessibleId).toBeTruthy();
+    const wrapper = container.querySelector(`[data-testid="edge-${edgeId}"]`);
+
+    expect(wrapper?.getAttribute('role')).toBe('button');
+    expect(wrapper?.getAttribute('aria-label')).toBeTruthy();
   });
 
   it('does not re-render when an unrelated node moves (memo isolation)', () => {
