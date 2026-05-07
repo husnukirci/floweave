@@ -4,7 +4,7 @@
 // its source and target node positions. Moving an unrelated node never
 // re-renders unrelated edges.")
 
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { Profiler, type ProfilerOnRenderCallback } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -97,7 +97,7 @@ describe('Edge', () => {
     expect(onRender).not.toHaveBeenCalled();
   });
 
-  it('re-renders when the source node moves', () => {
+  it('re-renders when the source node moves', async () => {
     const { aId, edgeId } = setupWorkflow();
 
     const onRender = vi.fn<ProfilerOnRenderCallback>();
@@ -112,7 +112,10 @@ describe('Edge', () => {
 
     workflowStore.getState().moveNode(aId, { x: 50, y: 50 });
 
-    // At least one commit (the position update) should fire
-    expect(onRender).toHaveBeenCalled();
+    // React 19 batches Zustand-triggered updates outside act() — wait
+    // for the commit to flush before asserting the Profiler fired.
+    await waitFor(() => {
+      expect(onRender).toHaveBeenCalled();
+    });
   });
 });
