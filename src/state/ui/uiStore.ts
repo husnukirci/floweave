@@ -69,10 +69,10 @@ export function createUiStore(): UiStore {
       // Selecting a node clears any selected edge (and vice versa) so
       // the properties panel always reflects exactly one selection.
       selectNode: (id) => {
-        set({ selectedNodeId: id, selectedEdgeId: id === null ? null : null });
+        set({ selectedNodeId: id, selectedEdgeId: null });
       },
       selectEdge: (id) => {
-        set({ selectedEdgeId: id, selectedNodeId: id === null ? null : null });
+        set({ selectedEdgeId: id, selectedNodeId: null });
       },
 
       hoverNode: (id) => {
