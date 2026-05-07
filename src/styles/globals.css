@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+/* Design tokens land in Phase 2 per ADR-015 (palette, typography, spacing,
+   radii, shadows). They live as CSS custom properties so they reach into
+   the Shadow DOM via the host page. */
+:root {
+  /* placeholder */
+}
