@@ -23,6 +23,30 @@ body {
   /* placeholder */
 }
 
+/* Pulse highlight for AI-added nodes. Triggered by Node.tsx when a
+   node id appears in uiStore.recentlyAddedNodeIds (set + auto-cleared
+   by chatStore.sendMessage after a successful add_node turn). The
+   ring-style box-shadow expands and fades; pairs visually with the
+   selection ring without colliding (uses a different colour and a
+   one-shot animation). The reduced-motion media query below collapses
+   the duration to 0.01ms so vestibular-sensitive users skip the
+   pulse. */
+@keyframes pulse-highlight {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+.animate-pulse-highlight {
+  animation: pulse-highlight 1.2s ease-out 1;
+}
+
 /* Honor user preference for reduced motion per CLAUDE.md §4 accessibility
    invariant. Hover/focus transitions and any animations collapse to near-
    instant so the editor is usable for vestibular-sensitive users. */
