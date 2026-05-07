@@ -288,4 +288,114 @@ describe('runAgentLoop', () => {
       expect.arrayContaining(['add_node', 'connect_nodes']),
     );
   });
+
+  it('aborts immediately when the signal is already aborted before the first iteration', async () => {
+    // No server.use() — request must never fire.
+    const store = createTestWorkflowStore();
+    const controller = new AbortController();
+    controller.abort();
+
+    const result = await runAgentLoop({
+      userMessage: 'hi',
+      store,
+      endpoint: ENDPOINT,
+      signal: controller.signal,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.iterations).toBe(0);
+    expect(result.error.toLowerCase()).toContain('abort');
+  });
+
+  it('returns ok:false with a Network error message when fetch throws a non-abort error', async () => {
+    const store = createTestWorkflowStore();
+    const fetchImpl = (() => Promise.reject(new TypeError('Failed to fetch'))) as typeof fetch;
+
+    const result = await runAgentLoop({
+      userMessage: 'hi',
+      store,
+      endpoint: ENDPOINT,
+      fetchImpl,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/network error/i);
+    expect(result.error.toLowerCase()).toContain('failed to fetch');
+  });
+
+  it('treats Error instances whose message contains "abort" as an abort, not a network error', async () => {
+    const store = createTestWorkflowStore();
+    const fetchImpl = (() =>
+      Promise.reject(new Error('The operation was aborted'))) as typeof fetch;
+
+    const result = await runAgentLoop({
+      userMessage: 'hi',
+      store,
+      endpoint: ENDPOINT,
+      fetchImpl,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe('Aborted');
+  });
+
+  it('marks tool_uses whose mutations participated in a mid-batch failure as is_error and preserves earlier successes', async () => {
+    let call = 0;
+    server.use(
+      http.post(ENDPOINT, () => {
+        call += 1;
+        if (call === 1) {
+          // Two tool_uses in one turn:
+          //   1) add_node — succeeds.
+          //   2) connect_nodes self → self — fails (self-loop validator).
+          // The batch's first mutation lands; the second fails.
+          return jsonResponse({
+            content: [
+              {
+                type: 'tool_use',
+                id: 'tu_add',
+                name: 'add_node',
+                input: { kind: 'task', position: { x: 10, y: 10 } },
+              },
+              {
+                type: 'tool_use',
+                id: 'tu_loop',
+                name: 'connect_nodes',
+                input: { source: 'never_exists', target: 'never_exists' },
+              },
+            ],
+            stop_reason: 'tool_use',
+          });
+        }
+        return jsonResponse({
+          content: [{ type: 'text', text: 'partial done' }],
+          stop_reason: 'end_turn',
+        });
+      }),
+    );
+    const store = createTestWorkflowStore();
+
+    const result = await runAgentLoop({
+      userMessage: 'do the thing',
+      store,
+      endpoint: ENDPOINT,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.toolCalls).toHaveLength(2);
+    // The first tool_use succeeded — its node landed in the store before
+    // the batch failed at the second mutation.
+    expect(result.toolCalls[0]?.name).toBe('add_node');
+    expect(result.toolCalls[0]?.isError).toBe(false);
+    expect(Object.keys(store.getState().nodes)).toHaveLength(1);
+    // The second tool_use is is_error, with the validator's reason
+    // surfaced (self-loop / source-not-found) in the result content.
+    expect(result.toolCalls[1]?.name).toBe('connect_nodes');
+    expect(result.toolCalls[1]?.isError).toBe(true);
+    expect(result.toolCalls[1]?.resultContent.toLowerCase()).toMatch(/tool failed/);
+  });
 });

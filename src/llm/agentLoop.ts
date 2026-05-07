@@ -120,6 +120,7 @@ function batchApplyToolUses(
 
   for (let i = 0; i < toolUses.length; i += 1) {
     const toolUse = toolUses[i];
+    /* c8 ignore next 4 -- defensive guard for noUncheckedIndexedAccess; bounded loop never produces undefined */
     if (!toolUse) {
       ranges[i] = null;
       continue;

@@ -220,4 +220,152 @@ describe('applyToolCall', () => {
       expect(result.content.toLowerCase()).toContain('unknown tool');
     });
   });
+
+  describe('input shape validation (early-return guards)', () => {
+    it('add_node rejects non-object input', () => {
+      const result = applyToolCall(toolUse('add_node', 'not an object'), store);
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('object');
+    });
+
+    it('connect_nodes rejects non-object input', () => {
+      const result = applyToolCall(toolUse('connect_nodes', null), store);
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('object');
+    });
+
+    it('connect_nodes rejects non-string source/target', () => {
+      const result = applyToolCall(toolUse('connect_nodes', { source: 1, target: 2 }), store);
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('string');
+    });
+
+    it('update_node rejects non-object input', () => {
+      const result = applyToolCall(toolUse('update_node', 42), store);
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('object');
+    });
+
+    it('update_node rejects non-string id', () => {
+      const result = applyToolCall(toolUse('update_node', { id: 7 }), store);
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('string');
+    });
+
+    it('update_node rejects malformed position', () => {
+      const a = store.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      if (!a.ok) throw new Error('setup');
+      const result = applyToolCall(
+        toolUse('update_node', { id: a.value.id, position: { x: 'oops', y: 0 } }),
+        store,
+      );
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('position');
+    });
+
+    it('update_node rejects non-string variable values', () => {
+      const a = store.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      if (!a.ok) throw new Error('setup');
+      const result = applyToolCall(
+        toolUse('update_node', { id: a.value.id, data: { variables: { k: { nested: 1 } } } }),
+        store,
+      );
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('variables');
+    });
+
+    it('update_node rejects non-string label', () => {
+      const a = store.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      if (!a.ok) throw new Error('setup');
+      const result = applyToolCall(
+        toolUse('update_node', { id: a.value.id, data: { label: 42 } }),
+        store,
+      );
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('label');
+    });
+
+    it('remove_node rejects non-object input', () => {
+      const result = applyToolCall(toolUse('remove_node', 'oops'), store);
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('object');
+    });
+
+    it('remove_node rejects non-string id', () => {
+      const result = applyToolCall(toolUse('remove_node', { id: 99 }), store);
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('string');
+    });
+
+    it('insert_between rejects non-object input', () => {
+      const result = applyToolCall(toolUse('insert_between', 'nope'), store);
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('object');
+    });
+
+    it('insert_between rejects non-string source/target', () => {
+      const result = applyToolCall(
+        toolUse('insert_between', { source: 1, target: 2, kind: 'task' }),
+        store,
+      );
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('string');
+    });
+
+    it('insert_between rejects start/end as the new node kind', () => {
+      const result = applyToolCall(
+        toolUse('insert_between', { source: 'a', target: 'b', kind: 'start' }),
+        store,
+      );
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('kind');
+    });
+
+    it('insert_between rejects when source or target node does not exist', () => {
+      const result = applyToolCall(
+        toolUse('insert_between', { source: 'ghost', target: 'phantom', kind: 'task' }),
+        store,
+      );
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('not found');
+    });
+
+    it('insert_between rejects malformed data on the new node', () => {
+      const a = store.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      const b = store.getState().addNode({ kind: 'task', position: { x: 100, y: 0 } });
+      if (!a.ok || !b.ok) throw new Error('setup');
+      store.getState().connectNodes({ source: a.value.id, target: b.value.id });
+
+      const result = applyToolCall(
+        toolUse('insert_between', {
+          source: a.value.id,
+          target: b.value.id,
+          kind: 'task',
+          data: { label: 42 },
+        }),
+        store,
+      );
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('label');
+    });
+
+    it('insert_between rejects kind=custom with an invalid customType', () => {
+      const a = store.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      const b = store.getState().addNode({ kind: 'task', position: { x: 100, y: 0 } });
+      if (!a.ok || !b.ok) throw new Error('setup');
+      store.getState().connectNodes({ source: a.value.id, target: b.value.id });
+
+      const result = applyToolCall(
+        toolUse('insert_between', {
+          source: a.value.id,
+          target: b.value.id,
+          kind: 'custom',
+          customType: 'notARealInsuranceKind',
+        }),
+        store,
+      );
+      expect(result.is_error).toBe(true);
+      expect(result.content.toLowerCase()).toContain('customtype');
+    });
+  });
 });
