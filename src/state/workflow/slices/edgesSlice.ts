@@ -11,13 +11,10 @@ import { nanoid } from 'nanoid';
 import type { StateCreator } from 'zustand';
 
 import type { WorkflowStoreState } from '../storeState';
-import type { Result, StoreError, WorkflowEdge } from '../types';
+import type { ConnectNodesInput, Result, StoreError, WorkflowEdge } from '../types';
 import { canConnect, type ConnectionFailureReason } from '../validators';
 
-export interface ConnectNodesInput {
-  source: string;
-  target: string;
-}
+export type { ConnectNodesInput };
 
 export interface EdgesSlice {
   edges: Record<string, WorkflowEdge>;
