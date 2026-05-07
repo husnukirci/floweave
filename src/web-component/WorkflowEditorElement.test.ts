@@ -223,4 +223,114 @@ describe('WorkflowEditorElement', () => {
       expect(events.length).toBe(beforeDetach);
     });
   });
+
+  describe('multi-instance support (ADR-019)', () => {
+    let a: WorkflowEditorElement;
+    let b: WorkflowEditorElement;
+
+    beforeEach(() => {
+      a = document.createElement('workflow-editor') as WorkflowEditorElement;
+      b = document.createElement('workflow-editor') as WorkflowEditorElement;
+      document.body.appendChild(a);
+      document.body.appendChild(b);
+    });
+
+    afterEach(() => {
+      a.remove();
+      b.remove();
+    });
+
+    it('two elements have fully independent workflow state', () => {
+      const idA = a.addNode({ kind: 'task', position: { x: 0, y: 0 } });
+
+      expect(a.getWorkflow().nodes[idA]).toBeDefined();
+      expect(b.getWorkflow().nodes[idA]).toBeUndefined();
+      expect(Object.keys(b.getWorkflow().nodes)).toHaveLength(0);
+
+      const idB = b.addNode({ kind: 'end', position: { x: 100, y: 0 } });
+
+      expect(a.getWorkflow().nodes[idB]).toBeUndefined();
+      expect(b.getWorkflow().nodes[idB]).toBeDefined();
+    });
+
+    it('clearing one element does not affect the other', () => {
+      a.addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      b.addNode({ kind: 'task', position: { x: 0, y: 0 } });
+
+      a.clear();
+
+      expect(Object.keys(a.getWorkflow().nodes)).toHaveLength(0);
+      expect(Object.keys(b.getWorkflow().nodes)).toHaveLength(1);
+    });
+
+    it('disconnecting one element does not break the other', () => {
+      b.addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      a.remove();
+
+      // b stays fully functional
+      expect(Object.keys(b.getWorkflow().nodes)).toHaveLength(1);
+      const idB = b.addNode({ kind: 'end', position: { x: 200, y: 0 } });
+      expect(b.getWorkflow().nodes[idB]).toBeDefined();
+    });
+
+    it('CustomEvents only fire on the element that produced the change', () => {
+      const eventsA: number[] = [];
+      const eventsB: number[] = [];
+      a.addEventListener('workflow-change', () => {
+        eventsA.push(1);
+      });
+      b.addEventListener('workflow-change', () => {
+        eventsB.push(1);
+      });
+
+      a.addNode({ kind: 'task', position: { x: 0, y: 0 } });
+
+      expect(eventsA.length).toBeGreaterThan(0);
+      expect(eventsB.length).toBe(0);
+
+      b.addNode({ kind: 'end', position: { x: 0, y: 0 } });
+
+      expect(eventsB.length).toBeGreaterThan(0);
+    });
+
+    it('initial-workflow attributes are independent across instances', () => {
+      a.remove();
+      b.remove();
+
+      const seedA = JSON.stringify({
+        nodes: {
+          alpha: {
+            id: 'alpha',
+            kind: 'task',
+            position: { x: 0, y: 0 },
+            data: { label: 'A', variables: {} },
+          },
+        },
+        edges: {},
+      });
+      const seedB = JSON.stringify({
+        nodes: {
+          beta: {
+            id: 'beta',
+            kind: 'task',
+            position: { x: 0, y: 0 },
+            data: { label: 'B', variables: {} },
+          },
+        },
+        edges: {},
+      });
+
+      a = document.createElement('workflow-editor') as WorkflowEditorElement;
+      b = document.createElement('workflow-editor') as WorkflowEditorElement;
+      a.setAttribute('initial-workflow', seedA);
+      b.setAttribute('initial-workflow', seedB);
+      document.body.appendChild(a);
+      document.body.appendChild(b);
+
+      expect(a.getWorkflow().nodes.alpha).toBeDefined();
+      expect(a.getWorkflow().nodes.beta).toBeUndefined();
+      expect(b.getWorkflow().nodes.beta).toBeDefined();
+      expect(b.getWorkflow().nodes.alpha).toBeUndefined();
+    });
+  });
 });
