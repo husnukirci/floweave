@@ -9,6 +9,7 @@
 import clsx from 'clsx';
 import { type JSX, type MouseEvent, memo, useCallback, useMemo } from 'react';
 
+import { CUSTOM_NODE_REGISTRY, type CustomNodeSpec } from '@/nodes/registry';
 import { selectNodeById } from '@/state/workflow/selectors';
 import { workflowStore } from '@/state/workflow/instance';
 import { useUiStore } from '@/state/ui/uiStore';
@@ -62,7 +63,9 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
 
   if (!node) return null;
 
-  const kindLabel = node.kind === 'custom' ? node.customType : node.kind;
+  const customSpec: CustomNodeSpec | null =
+    node.kind === 'custom' ? CUSTOM_NODE_REGISTRY[node.customType] : null;
+  const kindLabel = customSpec ? customSpec.label : node.kind;
   const ariaLabel = `${kindLabel} node: ${node.data.label}`;
 
   return (
@@ -70,6 +73,7 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
       type="button"
       data-testid={`node-${id}`}
       data-kind={node.kind}
+      data-custom-type={node.kind === 'custom' ? node.customType : undefined}
       data-selected={String(isSelected)}
       aria-label={ariaLabel}
       onClick={handleClick}
@@ -78,14 +82,14 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
       onPointerUp={pointerHandlers.onPointerUp}
       onPointerCancel={pointerHandlers.onPointerCancel}
       className={clsx(
-        'absolute flex min-w-[120px] flex-col items-center justify-center',
+        'absolute flex min-w-[140px] flex-col items-center justify-center',
         'rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
         'cursor-pointer hover:shadow-md',
         node.kind === 'start' && 'border-emerald-400 bg-emerald-50 text-emerald-900',
         node.kind === 'end' && 'border-rose-400 bg-rose-50 text-rose-900',
         node.kind === 'task' && 'border-blue-400 bg-blue-50 text-blue-900',
-        node.kind === 'custom' && 'border-violet-400 bg-violet-50 text-violet-900',
+        customSpec && [customSpec.borderClass, customSpec.bgClass, customSpec.textClass],
         isSelected && 'ring-2 ring-blue-500 ring-offset-2',
       )}
       style={{
@@ -94,7 +98,12 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
         top: `${String(node.position.y)}px`,
       }}
     >
-      <span className="text-xs uppercase tracking-wide opacity-60">{kindLabel}</span>
+      <span className="flex items-center gap-1 text-xs uppercase tracking-wide opacity-70">
+        {customSpec ? (
+          <customSpec.icon aria-hidden className={clsx('h-3 w-3', customSpec.iconClass)} />
+        ) : null}
+        {kindLabel}
+      </span>
       <span className="text-sm font-medium">{node.data.label}</span>
     </button>
   );
