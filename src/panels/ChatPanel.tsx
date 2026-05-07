@@ -9,24 +9,65 @@
 // the send button is disabled while a request is in flight; a Cancel
 // button surfaces alongside it for the duration of the pending state.
 
-import { useRef, useState, type JSX } from 'react';
+import { X } from 'lucide-react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { useChatStore, type ChatMessage } from '@/state/chat/chatStore';
+import { useUiStore } from '@/state/ui/uiStore';
 
 export function ChatPanel(): JSX.Element {
   const messages = useChatStore(useShallow((s) => s.messages));
+  const asideRef = useRef<HTMLElement>(null);
+
+  const closePanel = (): void => {
+    useUiStore.getState().setPanelOpen('chat', false);
+  };
+
+  // Escape closes the panel from anywhere inside it (input field,
+  // buttons, message list). Mounted on the panel root so the listener
+  // unmounts with the panel and doesn't leak document-level handlers.
+  useEffect(() => {
+    const node = asideRef.current;
+    if (!node) return;
+    const handle = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        closePanel();
+      }
+    };
+    node.addEventListener('keydown', handle);
+    return () => {
+      node.removeEventListener('keydown', handle);
+    };
+  }, []);
 
   return (
     <aside
+      ref={asideRef}
       aria-label="Chat"
       data-testid="chat-panel"
       className="fixed bottom-4 right-4 flex max-h-[60vh] w-96 flex-col rounded-lg border border-neutral-200 bg-white shadow-lg"
     >
-      <header className="border-b border-neutral-200 px-4 py-3">
+      <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
         <h2 className="text-sm font-semibold text-neutral-900">Chat</h2>
+        <button
+          type="button"
+          onClick={closePanel}
+          aria-label="Close chat"
+          className="rounded p-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </button>
       </header>
-      <div className="flex-1 overflow-y-auto px-4 py-3">
+      <div
+        // Live region so screen readers announce new assistant
+        // messages without forcing focus into the panel. "polite" is
+        // the right level — chat replies are useful but not urgent.
+        aria-live="polite"
+        aria-relevant="additions"
+        className="flex-1 overflow-y-auto px-4 py-3"
+      >
         {messages.length === 0 ? (
           <p className="text-sm text-neutral-500">
             Start a conversation — describe a workflow you want to build.

@@ -38,6 +38,7 @@ describe('Toolbar', () => {
     expect(getByTestId('toolbar-import-button')).toBeInTheDocument();
     expect(getByTestId('toolbar-export-button')).toBeInTheDocument();
     expect(getByTestId('toolbar-clear-button')).toBeInTheDocument();
+    expect(getByTestId('toolbar-chat-button')).toBeInTheDocument();
   });
 
   it('opens the add menu on click and closes again on a second click', () => {
@@ -119,6 +120,18 @@ describe('Toolbar', () => {
 
     expect(Object.keys(workflowStore.getState().nodes)).toHaveLength(1);
     window.confirm = original;
+  });
+
+  it('toggles the chat panel on click', () => {
+    const { getByTestId } = render(<Toolbar />);
+    expect(useUiStore.getState().panels.chat).toBe(false);
+
+    fireEvent.click(getByTestId('toolbar-chat-button'));
+    expect(useUiStore.getState().panels.chat).toBe(true);
+    expect(getByTestId('toolbar-chat-button')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(getByTestId('toolbar-chat-button'));
+    expect(useUiStore.getState().panels.chat).toBe(false);
   });
 
   describe('keyboard navigation', () => {

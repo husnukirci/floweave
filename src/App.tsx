@@ -8,6 +8,7 @@ import { useUiStore } from '@/state/ui/uiStore';
 
 export function App(): JSX.Element {
   const selectedNodeId = useUiStore((s) => s.selectedNodeId);
+  const chatOpen = useUiStore((s) => s.panels.chat);
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-white text-neutral-900 antialiased">
@@ -18,7 +19,7 @@ export function App(): JSX.Element {
         </div>
         {selectedNodeId !== null ? <PropertiesPanel nodeId={selectedNodeId} /> : null}
       </div>
-      <ChatPanel />
+      {chatOpen ? <ChatPanel /> : null}
     </div>
   );
 }

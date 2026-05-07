@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { useChatStore } from '@/state/chat/chatStore';
+import { useUiStore } from '@/state/ui/uiStore';
 import { server } from '@/test/server';
 
 import { ChatPanel } from './ChatPanel';
@@ -135,6 +136,43 @@ describe('ChatPanel', () => {
     await user.click(screen.getByRole('button', { name: /send/i }));
 
     expect(screen.getByRole('button', { name: /send/i })).toBeDisabled();
+  });
+
+  it('wraps the message list in an aria-live="polite" region so SRs announce new messages', () => {
+    useChatStore.getState().addMessage({
+      id: 'm1',
+      role: 'assistant',
+      content: 'Hello.',
+      timestamp: Date.now(),
+    });
+    const { container } = render(<ChatPanel />);
+
+    const live = container.querySelector('[aria-live="polite"]');
+    expect(live).not.toBeNull();
+    expect(live?.textContent).toContain('Hello.');
+  });
+
+  it('exposes a Close chat button that closes the chat panel', async () => {
+    useUiStore.getState().setPanelOpen('chat', true);
+    const user = userEvent.setup();
+    render(<ChatPanel />);
+
+    await user.click(screen.getByRole('button', { name: /close chat/i }));
+
+    expect(useUiStore.getState().panels.chat).toBe(false);
+  });
+
+  it('closes the panel when Escape is pressed', async () => {
+    useUiStore.getState().setPanelOpen('chat', true);
+    const user = userEvent.setup();
+    render(<ChatPanel />);
+
+    // Focus the textbox first so the keyboard event lands inside the
+    // panel (the Escape handler is mounted on the panel root).
+    await user.click(screen.getByRole('textbox', { name: /message|chat/i }));
+    await user.keyboard('{Escape}');
+
+    expect(useUiStore.getState().panels.chat).toBe(false);
   });
 
   it('exposes a cancel button only while a request is in flight', async () => {

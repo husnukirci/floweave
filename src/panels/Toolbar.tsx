@@ -5,7 +5,15 @@
 // Keyboard navigation (arrow keys, Escape, Tab) lands in commit 2 along
 // with full ARIA role mapping per CLAUDE.md §4 accessibility invariant.
 
-import { ChevronDown, Download, Plus, Trash2, Upload, type LucideIcon } from 'lucide-react';
+import {
+  ChevronDown,
+  Download,
+  MessageSquare,
+  Plus,
+  Trash2,
+  Upload,
+  type LucideIcon,
+} from 'lucide-react';
 import {
   type ChangeEvent,
   type JSX,
@@ -191,6 +199,11 @@ export function Toolbar(): JSX.Element {
     workflowStore.getState().clear();
   };
 
+  const chatOpen = useUiStore((s) => s.panels.chat);
+  const handleToggleChat = (): void => {
+    useUiStore.getState().togglePanel('chat');
+  };
+
   return (
     <div
       role="toolbar"
@@ -245,6 +258,15 @@ export function Toolbar(): JSX.Element {
 
       <ToolbarButton icon={Trash2} onClick={handleClear} data-testid="toolbar-clear-button">
         Clear
+      </ToolbarButton>
+
+      <ToolbarButton
+        icon={MessageSquare}
+        onClick={handleToggleChat}
+        data-testid="toolbar-chat-button"
+        aria-pressed={chatOpen}
+      >
+        Chat
       </ToolbarButton>
     </div>
   );
