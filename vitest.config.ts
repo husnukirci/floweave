@@ -25,14 +25,20 @@ export default defineConfig({
         '.husky/**',
         '.claude/**',
       ],
-      // Per-directory thresholds per CLAUDE.md §9. src/llm and src/utils
-      // stay loose until they have code (Phases 2 + 6).
+      // Per-directory thresholds per CLAUDE.md §9. src/llm stays loose
+      // until Phase 6 lands code there.
       thresholds: {
         'src/state/workflow/**': {
           lines: 90,
           branches: 85,
           functions: 90,
           statements: 90,
+        },
+        'src/utils/**': {
+          lines: 95,
+          branches: 90,
+          functions: 95,
+          statements: 95,
         },
       },
     },
