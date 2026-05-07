@@ -123,6 +123,18 @@ export function VariablesEditor({ nodeId }: VariablesEditorProps): JSX.Element |
 
   return (
     <div className="flex flex-col gap-2">
+      {rows.length > 0 ? (
+        <div
+          data-testid="variables-headers"
+          aria-hidden
+          className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500"
+        >
+          <span className="w-24 min-w-0 flex-1">Key</span>
+          <span className="w-12 text-center">Type</span>
+          <span className="w-24 min-w-0 flex-1">Value</span>
+          <span className="w-6" />
+        </div>
+      ) : null}
       {rows.map((row, index) => (
         <div
           key={row.uiId}

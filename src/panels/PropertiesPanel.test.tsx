@@ -96,6 +96,17 @@ describe('PropertiesPanel', () => {
     expect(workflowStore.getState().nodes[result.value.id]?.data.label).toBe('Updated');
   });
 
+  it('focuses the label input when the panel mounts', () => {
+    const result = workflowStore.getState().addNode({
+      kind: 'task',
+      position: { x: 0, y: 0 },
+    });
+    if (!result.ok) throw new Error('setup');
+
+    const { getByTestId } = render(<PropertiesPanel nodeId={result.value.id} />);
+    expect(document.activeElement).toBe(getByTestId('properties-label-input'));
+  });
+
   it('commits label edits on Enter as well as on blur', () => {
     const result = workflowStore.getState().addNode({
       kind: 'task',
