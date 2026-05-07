@@ -4,6 +4,15 @@ node_modules/
 # Build output
 dist/
 dist-ssr/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+
+# Environment
+.env
+.env.local
+.env.*.local
 
 # Logs
 *.log
@@ -11,8 +20,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# OS
+.DS_Store
+
 # Editor
 *.swp
 *.swo
 .vscode/
 .idea/
+
+# Claude Code per-user settings
+.claude/settings.local.json
