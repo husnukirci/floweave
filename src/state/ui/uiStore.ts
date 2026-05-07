@@ -24,6 +24,8 @@ export interface UiState {
   viewport: ViewportOffset;
   isConnecting: boolean;
   connectingFromNodeId: string | null;
+  /** Live cursor position in world coordinates during a connection drag. */
+  connectingCursor: ViewportOffset | null;
   panels: Record<PanelKey, boolean>;
 
   selectNode: (id: string | null) => void;
@@ -33,6 +35,7 @@ export interface UiState {
   setViewport: (viewport: ViewportOffset) => void;
   panViewport: (delta: ViewportOffset) => void;
   startConnecting: (sourceNodeId: string) => void;
+  updateConnectingCursor: (cursor: ViewportOffset) => void;
   finishConnecting: () => void;
   setPanelOpen: (panel: PanelKey, open: boolean) => void;
   togglePanel: (panel: PanelKey) => void;
@@ -47,6 +50,7 @@ const initialState: Pick<
   | 'viewport'
   | 'isConnecting'
   | 'connectingFromNodeId'
+  | 'connectingCursor'
   | 'panels'
 > = {
   selectedNodeId: null,
@@ -56,6 +60,7 @@ const initialState: Pick<
   viewport: { x: 0, y: 0 },
   isConnecting: false,
   connectingFromNodeId: null,
+  connectingCursor: null,
   panels: { properties: false, chat: false },
 };
 
@@ -90,10 +95,13 @@ export function createUiStore(): UiStore {
       },
 
       startConnecting: (sourceNodeId) => {
-        set({ isConnecting: true, connectingFromNodeId: sourceNodeId });
+        set({ isConnecting: true, connectingFromNodeId: sourceNodeId, connectingCursor: null });
+      },
+      updateConnectingCursor: (cursor) => {
+        set({ connectingCursor: cursor });
       },
       finishConnecting: () => {
-        set({ isConnecting: false, connectingFromNodeId: null });
+        set({ isConnecting: false, connectingFromNodeId: null, connectingCursor: null });
       },
 
       setPanelOpen: (panel, open) => {
