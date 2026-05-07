@@ -3,19 +3,16 @@
 // removeEdge, and removeEdgesForNode (called by nodesSlice.removeNode
 // to cascade-clean edges when a node is deleted).
 //
-// removeEdgesForNode does not return a Result — it cannot fail (idempotent
-// over an empty match set), and CLAUDE.md §3's Result requirement is for
-// "non-trivial" actions; bulk no-op-on-no-match doesn't qualify. It
-// returns the IDs of removed edges so callers (removeNode) can include
-// them in their own return value.
-//
-// Stub for TDD: actions throw so this commit's tests fail loudly. Real
-// implementation lands in commit 4.
+// removeEdgesForNode does not return a Result — it cannot fail
+// (idempotent over an empty match set). It returns the IDs of removed
+// edges so callers (removeNode) can include them in their own return.
 
+import { nanoid } from 'nanoid';
 import type { StateCreator } from 'zustand';
 
 import type { WorkflowStoreState } from '../storeState';
-import type { Result, WorkflowEdge } from '../types';
+import type { Result, StoreError, WorkflowEdge } from '../types';
+import { canConnect, type ConnectionFailureReason } from '../validators';
 
 export interface ConnectNodesInput {
   source: string;
@@ -29,23 +26,70 @@ export interface EdgesSlice {
   removeEdgesForNode: (nodeId: string) => readonly string[];
 }
 
-const NOT_IMPLEMENTED = (action: string): Error =>
-  new Error(`edgesSlice.${action}: not implemented (stub for TDD test commit)`);
+function edgeNotFound(id: string): StoreError {
+  return {
+    code: 'EDGE_NOT_FOUND',
+    message: `Edge ${id} not found`,
+    details: { id },
+  };
+}
+
+function cannotConnect(
+  reason: ConnectionFailureReason,
+  source: string,
+  target: string,
+): StoreError {
+  return {
+    code: 'CANNOT_CONNECT',
+    message: `Cannot connect ${source} → ${target}: ${reason}`,
+    details: { reason, source, target },
+  };
+}
 
 export const createEdgesSlice: StateCreator<
   WorkflowStoreState,
   [['zustand/immer', never]],
   [],
   EdgesSlice
-> = () => ({
+> = (set, get) => ({
   edges: {},
-  connectNodes: () => {
-    throw NOT_IMPLEMENTED('connectNodes');
+
+  connectNodes: ({ source, target }) => {
+    const validation = canConnect(source, target, get());
+    if (!validation.ok) {
+      return { ok: false, error: cannotConnect(validation.reason, source, target) };
+    }
+    const edge: WorkflowEdge = { id: nanoid(), source, target };
+    set((state) => {
+      state.edges[edge.id] = edge;
+    });
+    return { ok: true, value: edge };
   },
-  removeEdge: () => {
-    throw NOT_IMPLEMENTED('removeEdge');
+
+  removeEdge: (id) => {
+    const edge = get().edges[id];
+    if (!edge) {
+      return { ok: false, error: edgeNotFound(id) };
+    }
+    set((state) => {
+      delete state.edges[id];
+    });
+    return { ok: true, value: edge };
   },
-  removeEdgesForNode: () => {
-    throw NOT_IMPLEMENTED('removeEdgesForNode');
+
+  removeEdgesForNode: (nodeId) => {
+    const removedIds: string[] = [];
+    for (const edge of Object.values(get().edges)) {
+      if (edge.source === nodeId || edge.target === nodeId) {
+        removedIds.push(edge.id);
+      }
+    }
+    if (removedIds.length === 0) return [];
+    set((state) => {
+      for (const id of removedIds) {
+        delete state.edges[id];
+      }
+    });
+    return removedIds;
   },
 });

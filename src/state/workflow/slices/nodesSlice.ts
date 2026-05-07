@@ -124,11 +124,13 @@ export const createNodesSlice: StateCreator<
     if (!node) {
       return { ok: false, error: nodeNotFound(id) };
     }
+    // Cascade-delete edges where this node is source or target before
+    // removing the node itself. removeEdgesForNode is idempotent and
+    // returns the IDs it removed.
+    const removedEdgeIds = get().removeEdgesForNode(id);
     set((state) => {
       delete state.nodes[id];
     });
-    // Edge cascade lands in commit 4 (when edgesSlice exists and the
-    // StateCreator is widened to include state.edges).
-    return { ok: true, value: { removedNode: node, removedEdgeIds: [] } };
+    return { ok: true, value: { removedNode: node, removedEdgeIds } };
   },
 });
