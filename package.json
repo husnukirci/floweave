@@ -10,6 +10,7 @@
     "dev:server": "node --env-file-if-exists=.env --experimental-strip-types --no-warnings server/proxy.ts",
     "start:server": "node --env-file-if-exists=.env --experimental-strip-types --no-warnings server/proxy.ts",
     "build": "tsc -b && vite build",
+    "build:wc": "tsc -b && vite build --config vite.wc.config.ts",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint .",
