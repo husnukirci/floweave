@@ -28,13 +28,19 @@ function main(): void {
   }
   const port = Number(readEnv('PORT') ?? '3001');
   const defaultModel = readEnv('ANTHROPIC_MODEL');
+  const staticRoot = readEnv('STATIC_ROOT');
 
   // The real Anthropic instance satisfies the AnthropicClient interface
   // structurally; the cast narrows the SDK's broader return type to the
   // subset the handler consumes.
   const client = new Anthropic({ apiKey }) as unknown as AnthropicClient;
 
-  const app = createApp({ client, logger, defaultModel });
+  const app = createApp({
+    client,
+    logger,
+    defaultModel,
+    ...(staticRoot !== undefined && { staticRoot }),
+  });
 
   serve({ fetch: app.fetch, port }, (info) => {
     logger.info({ event: 'server_started', port: info.port, pid: process.pid });

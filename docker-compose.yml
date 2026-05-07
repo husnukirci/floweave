@@ -1,0 +1,22 @@
+# floweave compose stack — single service. Build the Hono proxy +
+# Web Component bundle into one image; expose the LLM proxy and serve
+# demo.html + dist-wc/ from the same port (3001) so the demo's chat
+# panel can reach /api/chat without CORS.
+#
+# Run: `make up` (wraps `docker compose up --build`).
+# Requires: a `.env` file at the repo root with ANTHROPIC_API_KEY set.
+
+services:
+  floweave:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: floweave
+    ports:
+      - '3001:3001'
+    env_file:
+      - .env
+    environment:
+      PORT: '3001'
+      STATIC_ROOT: '.'
+    restart: unless-stopped

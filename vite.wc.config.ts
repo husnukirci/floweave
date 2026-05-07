@@ -21,6 +21,15 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  define: {
+    // Vite library mode preserves `process.env.NODE_ENV` references so
+    // consumers can decide at their build time. The WC bundle is a
+    // browser drop-in with no host build step, so we replace these at
+    // build time with the production literal — otherwise React DOM's
+    // dev/prod entry switch throws ReferenceError when the bundle
+    // loads (no `process` global in the browser).
+    'process.env.NODE_ENV': JSON.stringify('production'),
+  },
   build: {
     outDir: 'dist-wc',
     emptyOutDir: true,
