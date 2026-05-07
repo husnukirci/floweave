@@ -2,10 +2,6 @@
 // Validation rules (PLAN.md §4): no self-loops, no duplicate edges, start
 // nodes cannot be a target, end nodes cannot be a source. Source/target
 // existence is also checked so callers get a precise reason code.
-//
-// Stub for TDD: this file ships with throws so the test commit's tests
-// fail loudly. Real implementation lands in the next commit per
-// PLAN.md §6 Phase 1 commit sequence.
 
 import type { WorkflowState } from './types';
 
@@ -20,9 +16,38 @@ export type ConnectionFailureReason =
 export type ValidationResult = { ok: true } | { ok: false; reason: ConnectionFailureReason };
 
 export function canConnect(
-  _sourceId: string,
-  _targetId: string,
-  _state: WorkflowState,
+  sourceId: string,
+  targetId: string,
+  state: WorkflowState,
 ): ValidationResult {
-  throw new Error('canConnect: not implemented (stub for TDD test commit)');
+  if (sourceId === targetId) {
+    return { ok: false, reason: 'self-loop' };
+  }
+
+  const source = state.nodes[sourceId];
+  if (!source) {
+    return { ok: false, reason: 'source-not-found' };
+  }
+
+  const target = state.nodes[targetId];
+  if (!target) {
+    return { ok: false, reason: 'target-not-found' };
+  }
+
+  if (target.kind === 'start') {
+    return { ok: false, reason: 'start-cannot-be-target' };
+  }
+
+  if (source.kind === 'end') {
+    return { ok: false, reason: 'end-cannot-be-source' };
+  }
+
+  const isDuplicate = Object.values(state.edges).some(
+    (edge) => edge.source === sourceId && edge.target === targetId,
+  );
+  if (isDuplicate) {
+    return { ok: false, reason: 'duplicate-edge' };
+  }
+
+  return { ok: true };
 }
