@@ -7,14 +7,20 @@
 // variants with Lucide icons land in commit 6.
 
 import clsx from 'clsx';
-import { type JSX, type MouseEvent, memo, useCallback } from 'react';
+import { type JSX, type MouseEvent, memo, useCallback, useMemo } from 'react';
 
 import { selectNodeById } from '@/state/workflow/selectors';
 import { workflowStore } from '@/state/workflow/instance';
 import { useUiStore } from '@/state/ui/uiStore';
+import { usePointerDrag } from '@/utils/pointer';
+import type { NodePosition } from '@/state/workflow/types';
 
 interface NodeProps {
   id: string;
+}
+
+interface DragStartData {
+  initialPosition: NodePosition;
 }
 
 function NodeComponent({ id }: NodeProps): JSX.Element | null {
@@ -30,6 +36,30 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
     [id, selectNode],
   );
 
+  // Drag handler set — usePointerDrag wires setPointerCapture and rAF
+  // throttling. Each frame, onDrag updates the node position via
+  // moveNode; React re-renders only this Node thanks to the per-id
+  // subscription. Drag also implicitly selects (selectNode in onDragStart).
+  const dragHandlers = useMemo<Parameters<typeof usePointerDrag<DragStartData>>[0]>(
+    () => ({
+      onDragStart: (event) => {
+        const current = workflowStore.getState().nodes[id];
+        if (!current) return null;
+        event.stopPropagation();
+        selectNode(id);
+        return { initialPosition: current.position };
+      },
+      onDrag: (_event, delta, startData) => {
+        workflowStore.getState().moveNode(id, {
+          x: startData.initialPosition.x + delta.totalDx,
+          y: startData.initialPosition.y + delta.totalDy,
+        });
+      },
+    }),
+    [id, selectNode],
+  );
+  const pointerHandlers = usePointerDrag<DragStartData>(dragHandlers);
+
   if (!node) return null;
 
   const kindLabel = node.kind === 'custom' ? node.customType : node.kind;
@@ -43,6 +73,10 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
       data-selected={String(isSelected)}
       aria-label={ariaLabel}
       onClick={handleClick}
+      onPointerDown={pointerHandlers.onPointerDown}
+      onPointerMove={pointerHandlers.onPointerMove}
+      onPointerUp={pointerHandlers.onPointerUp}
+      onPointerCancel={pointerHandlers.onPointerCancel}
       className={clsx(
         'absolute flex min-w-[120px] flex-col items-center justify-center',
         'rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
