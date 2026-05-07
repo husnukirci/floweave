@@ -34,12 +34,13 @@ const forbiddenImports = [
 export default tseslint.config(
   { ignores: ['dist', 'node_modules', 'coverage', '.husky'] },
 
+  // Base recommendations apply to everything.
   js.configs.recommended,
-  ...tseslint.configs.strictTypeChecked,
-  ...tseslint.configs.stylisticTypeChecked,
 
+  // TS strict + stylistic type-checked rules — scoped to TS only.
   {
-    files: ['**/*.{ts,tsx}'],
+    files: ['**/*.{ts,tsx,cts,mts}'],
+    extends: [...tseslint.configs.strictTypeChecked, ...tseslint.configs.stylisticTypeChecked],
     languageOptions: {
       ecmaVersion: 2022,
       globals: { ...globals.browser, ...globals.node },
@@ -75,9 +76,10 @@ export default tseslint.config(
     },
   },
 
-  // Config files: relax rules that don't make sense outside src/
+  // Plain JS config files: disable type-checked rules (no TS project to source from).
   {
-    files: ['vite.config.ts', 'vitest.config.ts', '*.config.{js,ts,mjs,cjs}'],
+    files: ['**/*.{js,mjs,cjs}'],
+    extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {
       globals: globals.node,
     },
@@ -86,5 +88,6 @@ export default tseslint.config(
     },
   },
 
+  // Prettier last to disable conflicting stylistic rules.
   prettier,
 );
