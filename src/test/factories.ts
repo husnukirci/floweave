@@ -8,6 +8,7 @@ import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 
 import { createEdgesSlice } from '@/state/workflow/slices/edgesSlice';
+import { createIoSlice } from '@/state/workflow/slices/ioSlice';
 import { createNodesSlice } from '@/state/workflow/slices/nodesSlice';
 import type { WorkflowStoreState } from '@/state/workflow/storeState';
 import type {
@@ -30,6 +31,7 @@ export function createTestWorkflowStore(): TestWorkflowStore {
     immer((...args) => ({
       ...createNodesSlice(...args),
       ...createEdgesSlice(...args),
+      ...createIoSlice(...args),
     })),
   );
 }

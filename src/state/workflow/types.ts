@@ -81,6 +81,27 @@ export interface UpdateNodePatch {
   position?: NodePosition;
 }
 
+export interface ConnectNodesInput {
+  source: string;
+  target: string;
+}
+
+// Mutation — the discriminated union of every action that modifies the
+// workflow store. Used by ioSlice.applyMutations to batch LLM-driven
+// changes into a single applied sequence (CLAUDE.md §4 invariant:
+// "LLM-driven mutations use applyMutations() as a single batched call.
+// Never call individual actions in a loop from the agent loop.").
+//
+// 1:1 mapping with the LLM tool schema in Phase 6 (ADR-009 atomic tools).
+
+export type Mutation =
+  | { kind: 'addNode'; input: AddNodeInput }
+  | { kind: 'updateNode'; id: string; patch: UpdateNodePatch }
+  | { kind: 'moveNode'; id: string; position: NodePosition }
+  | { kind: 'removeNode'; id: string }
+  | { kind: 'connectNodes'; input: ConnectNodesInput }
+  | { kind: 'removeEdge'; id: string };
+
 // Result envelope — all non-trivial store actions return this shape so
 // callers (UI and LLM tool executor alike) handle success and failure
 // uniformly without try/catch (CLAUDE.md §3).
