@@ -114,12 +114,17 @@ describe('chatStore', () => {
     });
 
     it('flips status to pending while the request is in flight and back to idle on completion', async () => {
-      let resolveResponse: (() => void) | undefined;
+      // Deferred created synchronously up front so the resolve handle
+      // is always defined when the test calls it; capturing the
+      // resolver inside the MSW handler races with the test's
+      // microtask drain.
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
       server.use(
         http.post(ENDPOINT, async () => {
-          await new Promise<void>((resolve) => {
-            resolveResponse = resolve;
-          });
+          await gate;
           return HttpResponse.json({
             content: [{ type: 'text', text: 'late' }],
             stop_reason: 'end_turn',
@@ -132,7 +137,7 @@ describe('chatStore', () => {
       expect(chat.getState().status).toBe('pending');
       expect(chat.getState().abortController).not.toBeNull();
 
-      resolveResponse?.();
+      release();
       await send;
 
       expect(chat.getState().status).toBe('idle');
