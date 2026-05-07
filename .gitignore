@@ -3,6 +3,7 @@ node_modules/
 
 # Build output
 dist/
+dist-wc/
 dist-ssr/
 *.tsbuildinfo
 
@@ -34,5 +35,5 @@ yarn-error.log*
 
 # Playwright MCP local verification artifacts (snapshots, screenshots, logs)
 .playwright-mcp/
-phase-*-commit-*.png
+phase-*.png
 scenario-*.png

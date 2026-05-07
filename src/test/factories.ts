@@ -3,10 +3,16 @@
 // for test data"). Override only what each test cares about; defaults
 // keep the test focused on the behaviour under test.
 
+import { render, type RenderResult } from '@testing-library/react';
 import { nanoid } from 'nanoid';
+import { createElement, type ReactElement } from 'react';
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 
+import { createChatStore, type ChatStore } from '@/state/chat/chatStore';
+import { createStores, type CreatedStores } from '@/state/createStores';
+import { StoresProvider } from '@/state/StoresProvider';
+import { createUiStore, type UiStore } from '@/state/ui/uiStore';
 import { createEdgesSlice } from '@/state/workflow/slices/edgesSlice';
 import { createIoSlice } from '@/state/workflow/slices/ioSlice';
 import { createNodesSlice } from '@/state/workflow/slices/nodesSlice';
@@ -98,3 +104,45 @@ function defaultLabel(kind: NodeKind, customType?: CustomNodeType): string {
   if (kind === 'task') return 'Task';
   return customType ?? 'Custom';
 }
+
+// renderWithStores — wraps a tree in StoresProvider so component tests
+// can render without manually constructing every store. Returns the
+// stores alongside the RTL render result so the test can drive them
+// imperatively (`stores.workflowStore.getState().addNode(...)`).
+//
+// Tests that need a store with explicit shape pass it in via overrides;
+// otherwise a fresh persist-disabled store set is built.
+export interface RenderWithStoresOptions {
+  stores?: Partial<CreatedStores>;
+}
+
+export type RenderWithStoresResult = RenderResult & { stores: CreatedStores };
+
+export function renderWithStores(
+  ui: ReactElement,
+  options: RenderWithStoresOptions = {},
+): RenderWithStoresResult {
+  const stores = resolveStores(options.stores);
+  const result = render(createElement(StoresProvider, stores, ui));
+  return Object.assign(result, { stores });
+}
+
+function resolveStores(partial?: Partial<CreatedStores>): CreatedStores {
+  if (partial?.workflowStore && partial.uiStore && partial.chatStore) {
+    return {
+      workflowStore: partial.workflowStore,
+      uiStore: partial.uiStore,
+      chatStore: partial.chatStore,
+    };
+  }
+  // Build any missing pieces from scratch. Chat depends on workflow +
+  // ui; resolve those first so a custom workflow store flows through.
+  const workflowStore = partial?.workflowStore ?? createTestWorkflowStore();
+  const uiStore: UiStore = partial?.uiStore ?? createUiStore();
+  const chatStore: ChatStore = partial?.chatStore ?? createChatStore({ workflowStore, uiStore });
+  return { workflowStore, uiStore, chatStore };
+}
+
+// Re-export so component tests can build a real (middleware-wrapped)
+// store via createStores when they need persist or temporal behaviour.
+export { createStores };

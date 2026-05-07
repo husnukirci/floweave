@@ -13,9 +13,8 @@ import clsx from 'clsx';
 import { type JSX, type MouseEvent, memo, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
+import { useUiStore, useWorkflowStore } from '@/state/StoresProvider';
 import { selectEdgeEndpoints } from '@/state/workflow/selectors';
-import { workflowStore } from '@/state/workflow/instance';
-import { useUiStore } from '@/state/ui/uiStore';
 import { bezierPath } from '@/utils/bezier';
 
 interface EdgeProps {
@@ -34,7 +33,7 @@ function anchorLeft(p: { x: number; y: number }): { x: number; y: number } {
 }
 
 function EdgeComponent({ id }: EdgeProps): JSX.Element | null {
-  const { source, target, sourceLabel, targetLabel } = workflowStore(
+  const { source, target, sourceLabel, targetLabel } = useWorkflowStore(
     useShallow(selectEdgeEndpoints(id)),
   );
   const isSelected = useUiStore((s) => s.selectedEdgeId === id);

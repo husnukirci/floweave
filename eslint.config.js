@@ -32,7 +32,7 @@ const forbiddenImports = [
 ];
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'coverage', '.husky'] },
+  { ignores: ['dist', 'dist-wc', 'node_modules', 'coverage', '.husky'] },
 
   // Base recommendations apply to everything.
   js.configs.recommended,

@@ -5,26 +5,29 @@
 // Context-injected stores at which point each test gets isolation
 // for free).
 
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { createUiStore, type UiStore } from '@/state/ui/uiStore';
+import {
+  createTestWorkflowStore,
+  renderWithStores,
+  type TestWorkflowStore,
+} from '@/test/factories';
+
 import { Node } from './Node';
-import { workflowStore } from '@/state/workflow/instance';
-import { useUiStore } from '@/state/ui/uiStore';
 
 describe('Node', () => {
+  let workflowStore: TestWorkflowStore;
+  let uiStore: UiStore;
+
+  const renderNode = (ui: ReactElement) =>
+    renderWithStores(ui, { stores: { workflowStore, uiStore } });
+
   beforeEach(() => {
-    workflowStore.getState().clear();
-    useUiStore.setState({
-      selectedNodeId: null,
-      selectedEdgeId: null,
-      hoveredNodeId: null,
-      hoveredEdgeId: null,
-      viewport: { x: 0, y: 0 },
-      isConnecting: false,
-      connectingFromNodeId: null,
-      panels: { properties: false, chat: false },
-    });
+    workflowStore = createTestWorkflowStore();
+    uiStore = createUiStore();
   });
 
   it('renders the label, kind chip, and aria-label for a basic node', () => {
@@ -35,7 +38,7 @@ describe('Node', () => {
     });
     if (!result.ok) throw new Error('setup');
 
-    const { getByTestId, getByText } = render(<Node id={result.value.id} />);
+    const { getByTestId, getByText } = renderNode(<Node id={result.value.id} />);
     const button = getByTestId(`node-${result.value.id}`);
 
     expect(getByText('Verify Coverage')).toBeInTheDocument();
@@ -52,12 +55,12 @@ describe('Node', () => {
     });
     if (!result.ok) throw new Error('setup');
 
-    const { getByTestId } = render(<Node id={result.value.id} />);
+    const { getByTestId } = renderNode(<Node id={result.value.id} />);
     expect(getByTestId(`node-${result.value.id}`)).toHaveAttribute('data-kind', 'custom');
   });
 
   it('renders nothing when the id is not in the store', () => {
-    const { container } = render(<Node id="missing" />);
+    const { container } = renderNode(<Node id="missing" />);
     expect(container.firstChild).toBeNull();
   });
 
@@ -65,18 +68,18 @@ describe('Node', () => {
     const result = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
     if (!result.ok) throw new Error('setup');
 
-    const { getByTestId } = render(<Node id={result.value.id} />);
+    const { getByTestId } = renderNode(<Node id={result.value.id} />);
     fireEvent.click(getByTestId(`node-${result.value.id}`));
 
-    expect(useUiStore.getState().selectedNodeId).toBe(result.value.id);
+    expect(uiStore.getState().selectedNodeId).toBe(result.value.id);
   });
 
   it('reflects selection state via data-selected', () => {
     const result = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
     if (!result.ok) throw new Error('setup');
-    useUiStore.setState({ selectedNodeId: result.value.id });
+    uiStore.setState({ selectedNodeId: result.value.id });
 
-    const { getByTestId } = render(<Node id={result.value.id} />);
+    const { getByTestId } = renderNode(<Node id={result.value.id} />);
     expect(getByTestId(`node-${result.value.id}`)).toHaveAttribute('data-selected', 'true');
   });
 
@@ -84,7 +87,7 @@ describe('Node', () => {
     it('removes the focused node on Delete', () => {
       const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
       if (!a.ok) throw new Error('setup');
-      const { getByTestId } = render(<Node id={a.value.id} />);
+      const { getByTestId } = renderNode(<Node id={a.value.id} />);
 
       fireEvent.keyDown(getByTestId(`node-${a.value.id}`), { key: 'Delete' });
 
@@ -94,7 +97,7 @@ describe('Node', () => {
     it('removes the focused node on Backspace', () => {
       const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
       if (!a.ok) throw new Error('setup');
-      const { getByTestId } = render(<Node id={a.value.id} />);
+      const { getByTestId } = renderNode(<Node id={a.value.id} />);
 
       fireEvent.keyDown(getByTestId(`node-${a.value.id}`), { key: 'Backspace' });
 
@@ -105,7 +108,7 @@ describe('Node', () => {
       const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
       const b = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
       if (!a.ok || !b.ok) throw new Error('setup');
-      const { getByTestId } = render(
+      const { getByTestId } = renderNode(
         <>
           <Node id={a.value.id} />
           <Node id={b.value.id} />
@@ -123,7 +126,7 @@ describe('Node', () => {
       const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
       const b = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
       if (!a.ok || !b.ok) throw new Error('setup');
-      const { getByTestId } = render(
+      const { getByTestId } = renderNode(
         <>
           <Node id={a.value.id} />
           <Node id={b.value.id} />
@@ -142,32 +145,32 @@ describe('Node', () => {
     it("'c' on a focused node enters connecting state", () => {
       const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
       if (!a.ok) throw new Error('setup');
-      const { getByTestId } = render(<Node id={a.value.id} />);
+      const { getByTestId } = renderNode(<Node id={a.value.id} />);
 
       fireEvent.keyDown(getByTestId(`node-${a.value.id}`), { key: 'c' });
 
-      expect(useUiStore.getState().isConnecting).toBe(true);
-      expect(useUiStore.getState().connectingFromNodeId).toBe(a.value.id);
+      expect(uiStore.getState().isConnecting).toBe(true);
+      expect(uiStore.getState().connectingFromNodeId).toBe(a.value.id);
     });
 
     it('Escape during connecting cancels', () => {
       const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
       if (!a.ok) throw new Error('setup');
-      useUiStore.setState({ isConnecting: true, connectingFromNodeId: a.value.id });
-      const { getByTestId } = render(<Node id={a.value.id} />);
+      uiStore.setState({ isConnecting: true, connectingFromNodeId: a.value.id });
+      const { getByTestId } = renderNode(<Node id={a.value.id} />);
 
       fireEvent.keyDown(getByTestId(`node-${a.value.id}`), { key: 'Escape' });
 
-      expect(useUiStore.getState().isConnecting).toBe(false);
-      expect(useUiStore.getState().connectingFromNodeId).toBeNull();
+      expect(uiStore.getState().isConnecting).toBe(false);
+      expect(uiStore.getState().connectingFromNodeId).toBeNull();
     });
 
     it('Enter on a target node while connecting creates the edge', () => {
       const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
       const b = workflowStore.getState().addNode({ kind: 'task', position: { x: 200, y: 0 } });
       if (!a.ok || !b.ok) throw new Error('setup');
-      useUiStore.setState({ isConnecting: true, connectingFromNodeId: a.value.id });
-      const { getByTestId } = render(<Node id={b.value.id} />);
+      uiStore.setState({ isConnecting: true, connectingFromNodeId: a.value.id });
+      const { getByTestId } = renderNode(<Node id={b.value.id} />);
 
       fireEvent.keyDown(getByTestId(`node-${b.value.id}`), { key: 'Enter' });
 
@@ -175,7 +178,7 @@ describe('Node', () => {
       expect(edges).toHaveLength(1);
       expect(edges[0]?.source).toBe(a.value.id);
       expect(edges[0]?.target).toBe(b.value.id);
-      expect(useUiStore.getState().isConnecting).toBe(false);
+      expect(uiStore.getState().isConnecting).toBe(false);
     });
   });
 
@@ -186,7 +189,7 @@ describe('Node', () => {
     });
     if (!result.ok) throw new Error('setup');
 
-    const { getByTestId } = render(<Node id={result.value.id} />);
+    const { getByTestId } = renderNode(<Node id={result.value.id} />);
     const button = getByTestId(`node-${result.value.id}`);
     expect(button.style.left).toBe('234px');
     expect(button.style.top).toBe('567px');

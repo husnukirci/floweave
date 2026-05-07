@@ -13,16 +13,13 @@ import { X } from 'lucide-react';
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
-import { useChatStore, type ChatMessage } from '@/state/chat/chatStore';
-import { useUiStore } from '@/state/ui/uiStore';
+import type { ChatMessage } from '@/state/chat/chatStore';
+import { useChatStore, useUiStoreApi } from '@/state/StoresProvider';
 
 export function ChatPanel(): JSX.Element {
   const messages = useChatStore(useShallow((s) => s.messages));
+  const uiStoreApi = useUiStoreApi();
   const asideRef = useRef<HTMLElement>(null);
-
-  const closePanel = (): void => {
-    useUiStore.getState().setPanelOpen('chat', false);
-  };
 
   // Escape closes the panel from anywhere inside it (input field,
   // buttons, message list). Mounted on the panel root so the listener
@@ -33,14 +30,18 @@ export function ChatPanel(): JSX.Element {
     const handle = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         event.stopPropagation();
-        closePanel();
+        uiStoreApi.getState().setPanelOpen('chat', false);
       }
     };
     node.addEventListener('keydown', handle);
     return () => {
       node.removeEventListener('keydown', handle);
     };
-  }, []);
+  }, [uiStoreApi]);
+
+  const closePanel = (): void => {
+    uiStoreApi.getState().setPanelOpen('chat', false);
+  };
 
   return (
     <aside

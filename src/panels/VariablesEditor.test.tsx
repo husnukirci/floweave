@@ -2,15 +2,25 @@
 // Phase 5. Verifies row rendering per variable, add/delete, key/value
 // edits committed on blur, and type-change conversion semantics.
 
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import {
+  createTestWorkflowStore,
+  renderWithStores,
+  type TestWorkflowStore,
+} from '@/test/factories';
+
 import { VariablesEditor } from './VariablesEditor';
-import { workflowStore } from '@/state/workflow/instance';
 
 describe('VariablesEditor', () => {
+  let workflowStore: TestWorkflowStore;
+
+  const renderEditor = (ui: ReactElement) => renderWithStores(ui, { stores: { workflowStore } });
+
   beforeEach(() => {
-    workflowStore.getState().clear();
+    workflowStore = createTestWorkflowStore();
   });
 
   afterEach(() => {
@@ -29,21 +39,21 @@ describe('VariablesEditor', () => {
 
   it('renders one row per existing variable', () => {
     const id = setupNodeWithVariables({ claimType: 'water', isUrgent: true, count: 3 });
-    const { getAllByTestId } = render(<VariablesEditor nodeId={id} />);
+    const { getAllByTestId } = renderEditor(<VariablesEditor nodeId={id} />);
 
     expect(getAllByTestId(/^variable-row-/).length).toBe(3);
   });
 
   it('renders an empty list when there are no variables', () => {
     const id = setupNodeWithVariables({});
-    const { queryAllByTestId } = render(<VariablesEditor nodeId={id} />);
+    const { queryAllByTestId } = renderEditor(<VariablesEditor nodeId={id} />);
 
     expect(queryAllByTestId(/^variable-row-/).length).toBe(0);
   });
 
   it('renders visible Key / Type / Value column headers when rows exist', () => {
     const id = setupNodeWithVariables({ a: '1' });
-    const { getByTestId } = render(<VariablesEditor nodeId={id} />);
+    const { getByTestId } = renderEditor(<VariablesEditor nodeId={id} />);
 
     expect(getByTestId('variables-headers')).toHaveTextContent(/key/i);
     expect(getByTestId('variables-headers')).toHaveTextContent(/type/i);
@@ -52,14 +62,14 @@ describe('VariablesEditor', () => {
 
   it('hides column headers when no variables exist', () => {
     const id = setupNodeWithVariables({});
-    const { queryByTestId } = render(<VariablesEditor nodeId={id} />);
+    const { queryByTestId } = renderEditor(<VariablesEditor nodeId={id} />);
 
     expect(queryByTestId('variables-headers')).toBeNull();
   });
 
   it('clicking Add Variable creates a new empty row in local state', () => {
     const id = setupNodeWithVariables({});
-    const { getByTestId, getAllByTestId } = render(<VariablesEditor nodeId={id} />);
+    const { getByTestId, getAllByTestId } = renderEditor(<VariablesEditor nodeId={id} />);
 
     fireEvent.click(getByTestId('variables-add-button'));
 
@@ -68,7 +78,7 @@ describe('VariablesEditor', () => {
 
   it('committing a key/value pair on blur writes through to the store', () => {
     const id = setupNodeWithVariables({});
-    const { getByTestId } = render(<VariablesEditor nodeId={id} />);
+    const { getByTestId } = renderEditor(<VariablesEditor nodeId={id} />);
 
     fireEvent.click(getByTestId('variables-add-button'));
     const keyInput = getByTestId('variables-key-input-0') as HTMLInputElement;
@@ -83,7 +93,7 @@ describe('VariablesEditor', () => {
 
   it('changing the type from string to number converts the value', () => {
     const id = setupNodeWithVariables({ count: '42' });
-    const { getByTestId } = render(<VariablesEditor nodeId={id} />);
+    const { getByTestId } = renderEditor(<VariablesEditor nodeId={id} />);
     const typeSelect = getByTestId('variables-type-select-0') as HTMLSelectElement;
 
     fireEvent.change(typeSelect, { target: { value: 'number' } });
@@ -94,7 +104,7 @@ describe('VariablesEditor', () => {
 
   it('changing type to boolean coerces falsy / truthy values', () => {
     const id = setupNodeWithVariables({ active: 'true' });
-    const { getByTestId } = render(<VariablesEditor nodeId={id} />);
+    const { getByTestId } = renderEditor(<VariablesEditor nodeId={id} />);
     const typeSelect = getByTestId('variables-type-select-0') as HTMLSelectElement;
 
     fireEvent.change(typeSelect, { target: { value: 'boolean' } });
@@ -105,7 +115,7 @@ describe('VariablesEditor', () => {
 
   it('clicking the row delete button removes the variable from the store', () => {
     const id = setupNodeWithVariables({ a: '1', b: '2' });
-    const { getByTestId, getAllByTestId } = render(<VariablesEditor nodeId={id} />);
+    const { getByTestId, getAllByTestId } = renderEditor(<VariablesEditor nodeId={id} />);
 
     expect(getAllByTestId(/^variable-row-/).length).toBe(2);
     fireEvent.click(getByTestId('variables-delete-button-0'));

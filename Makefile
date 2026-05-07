@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev dev-server test build clean up docker-build docker-run
+.PHONY: help install dev dev-server test build build-wc clean up docker-build docker-run
 
 help:  ## Show this help
 	@echo "floweave — make targets:"
@@ -24,8 +24,11 @@ test:  ## Local quality gates: typecheck + lint + unit tests
 	npm run lint
 	npm test
 
-build:  ## Production build (typecheck + vite build)
+build:  ## Production build (typecheck + vite build of the dev SPA)
 	npm run build
+
+build-wc:  ## Build the embeddable Web Component bundle into dist-wc/
+	npm run build:wc
 
 clean:  ## Remove node_modules, dist, coverage, tsbuildinfo
 	rm -rf node_modules dist coverage .tsbuildinfo

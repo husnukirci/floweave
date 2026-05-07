@@ -4,7 +4,7 @@ import { Canvas } from '@/canvas/Canvas';
 import { ChatPanel } from '@/panels/ChatPanel';
 import { PropertiesPanel } from '@/panels/PropertiesPanel';
 import { Toolbar } from '@/panels/Toolbar';
-import { useUiStore } from '@/state/ui/uiStore';
+import { useUiStore } from '@/state/StoresProvider';
 
 export function App(): JSX.Element {
   const selectedNodeId = useUiStore((s) => s.selectedNodeId);

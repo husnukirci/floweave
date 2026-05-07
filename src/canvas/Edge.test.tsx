@@ -4,33 +4,40 @@
 // its source and target node positions. Moving an unrelated node never
 // re-renders unrelated edges.")
 
-import { render, waitFor } from '@testing-library/react';
+import { waitFor } from '@testing-library/react';
 import { Profiler, type ProfilerOnRenderCallback } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  createTestWorkflowStore,
+  renderWithStores,
+  type TestWorkflowStore,
+} from '@/test/factories';
+
 import { Edge } from './Edge';
-import { workflowStore } from '@/state/workflow/instance';
-
-function setupWorkflow() {
-  workflowStore.getState().clear();
-  const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
-  const b = workflowStore.getState().addNode({ kind: 'task', position: { x: 200, y: 100 } });
-  if (!a.ok || !b.ok) throw new Error('setup failed');
-  const edge = workflowStore.getState().connectNodes({ source: a.value.id, target: b.value.id });
-  if (!edge.ok) throw new Error('setup failed');
-  return { aId: a.value.id, bId: b.value.id, edgeId: edge.value.id };
-}
-
-const renderEdgeIn = (edgeId: string) =>
-  render(
-    <svg>
-      <Edge id={edgeId} />
-    </svg>,
-  );
 
 describe('Edge', () => {
+  let workflowStore: TestWorkflowStore;
+
+  function setupWorkflow() {
+    const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+    const b = workflowStore.getState().addNode({ kind: 'task', position: { x: 200, y: 100 } });
+    if (!a.ok || !b.ok) throw new Error('setup failed');
+    const edge = workflowStore.getState().connectNodes({ source: a.value.id, target: b.value.id });
+    if (!edge.ok) throw new Error('setup failed');
+    return { aId: a.value.id, bId: b.value.id, edgeId: edge.value.id };
+  }
+
+  const renderEdgeIn = (edgeId: string) =>
+    renderWithStores(
+      <svg>
+        <Edge id={edgeId} />
+      </svg>,
+      { stores: { workflowStore } },
+    );
+
   beforeEach(() => {
-    workflowStore.getState().clear();
+    workflowStore = createTestWorkflowStore();
   });
 
   afterEach(() => {
@@ -77,12 +84,13 @@ describe('Edge', () => {
     if (!c.ok) throw new Error('setup failed');
 
     const onRender = vi.fn<ProfilerOnRenderCallback>();
-    render(
+    renderWithStores(
       <svg>
         <Profiler id="edge" onRender={onRender}>
           <Edge id={edgeId} />
         </Profiler>
       </svg>,
+      { stores: { workflowStore } },
     );
     onRender.mockClear();
 
@@ -97,12 +105,13 @@ describe('Edge', () => {
     const { aId, edgeId } = setupWorkflow();
 
     const onRender = vi.fn<ProfilerOnRenderCallback>();
-    render(
+    renderWithStores(
       <svg>
         <Profiler id="edge" onRender={onRender}>
           <Edge id={edgeId} />
         </Profiler>
       </svg>,
+      { stores: { workflowStore } },
     );
     onRender.mockClear();
 
