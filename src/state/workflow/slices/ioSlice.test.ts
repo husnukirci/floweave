@@ -86,6 +86,26 @@ describe('ioSlice', () => {
       expect(result.error.code).toBe('SCHEMA_INVALID');
     });
 
+    it('returns Result.err SCHEMA_INVALID for an unknown node kind', () => {
+      const json = JSON.stringify({
+        nodes: {
+          a: {
+            id: 'a',
+            kind: 'invalid-kind',
+            position: { x: 0, y: 0 },
+            data: { label: 'A', variables: {} },
+          },
+        },
+        edges: {},
+      });
+
+      const result = store.getState().importJSON(json);
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe('SCHEMA_INVALID');
+    });
+
     it('returns Result.err SCHEMA_INVALID for a malformed edge', () => {
       const json = JSON.stringify({
         nodes: {},
@@ -158,6 +178,26 @@ describe('ioSlice', () => {
       if (result.ok) return;
       expect(result.error.code).toBe('MUTATION_FAILED');
       expect(result.error.details?.index).toBe(1);
+    });
+
+    it('applies moveNode, removeNode, and removeEdge mutations', () => {
+      const a = store.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      const b = store.getState().addNode({ kind: 'task', position: { x: 100, y: 0 } });
+      if (!a.ok || !b.ok) throw new Error('setup failed');
+      const edge = store.getState().connectNodes({ source: a.value.id, target: b.value.id });
+      if (!edge.ok) throw new Error('setup failed');
+
+      const result = store.getState().applyMutations([
+        { kind: 'moveNode', id: a.value.id, position: { x: 50, y: 50 } },
+        { kind: 'removeEdge', id: edge.value.id },
+        { kind: 'removeNode', id: b.value.id },
+      ]);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(store.getState().nodes[a.value.id]?.position).toEqual({ x: 50, y: 50 });
+      expect(store.getState().nodes[b.value.id]).toBeUndefined();
+      expect(store.getState().edges[edge.value.id]).toBeUndefined();
     });
 
     it('connects nodes added in the same batch', () => {
