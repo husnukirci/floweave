@@ -31,3 +31,7 @@ yarn-error.log*
 
 # Claude Code per-user settings
 .claude/settings.local.json
+
+# Playwright MCP local verification artifacts (snapshots, screenshots, logs)
+.playwright-mcp/
+phase-*-commit-*.png

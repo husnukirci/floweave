@@ -1,4 +1,20 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+
+/* Reset margins and ensure the React root fills the viewport. The
+   editor's outer wrapper (App.tsx) takes h-screen / w-screen; this
+   makes that work without leaving white gutters around the page. */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
+    'Helvetica Neue', sans-serif;
+}
 
 /* Design tokens land in Phase 2 per ADR-015 (palette, typography, spacing,
    radii, shadows). They live as CSS custom properties so they reach into
