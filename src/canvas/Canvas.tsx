@@ -3,30 +3,24 @@
 // Architecture invariants (CLAUDE.md §4):
 //   - Pan via `transform: translate3d(...)` on the inner content layer
 //     with `will-change: transform`; never `top`/`left` for pan.
-//   - Pointer events with `setPointerCapture` for drag interactions —
-//     no document-level listeners.
-//   - Hybrid HTML+SVG canvas: HTML divs for nodes (rendered inside
-//     this container in commit 4), SVG overlay for edges (Phase 3).
-//
-// Pan handler is currently direct (no rAF throttle). Commit 5 wraps
-// it in the rAF pointer hook (src/utils/pointer.ts) once the utility
-// ships.
+//   - Pointer events with `setPointerCapture` for drag interactions
+//     (via usePointerDrag hook) — no document-level listeners.
+//   - Hybrid HTML+SVG canvas: HTML divs for nodes (rendered inside this
+//     container), SVG overlay for edges (Phase 3).
 
-import { type JSX, type PointerEvent, useCallback, useRef } from 'react';
+import { type JSX, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { workflowStore } from '@/state/workflow/instance';
 import { selectNodeIds } from '@/state/workflow/selectors';
 import { useUiStore } from '@/state/ui/uiStore';
+import { usePointerDrag } from '@/utils/pointer';
+import type { ViewportOffset } from '@/state/ui/uiStore';
 
 import { Node } from './Node';
 
-interface PanState {
-  pointerId: number;
-  startX: number;
-  startY: number;
-  startVx: number;
-  startVy: number;
+interface PanStartData {
+  initialViewport: ViewportOffset;
 }
 
 export function Canvas(): JSX.Element {
@@ -34,54 +28,38 @@ export function Canvas(): JSX.Element {
   const setViewport = useUiStore((s) => s.setViewport);
   const selectNode = useUiStore((s) => s.selectNode);
   const nodeIds = workflowStore(useShallow(selectNodeIds));
-  const panRef = useRef<PanState | null>(null);
 
-  const handlePointerDown = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      // Pan only when the down event hits the canvas itself; nodes
-      // stop propagation in their own click handler. A click on the
-      // empty canvas also clears any node selection.
-      if (event.target !== event.currentTarget) return;
-      selectNode(null);
-      event.currentTarget.setPointerCapture(event.pointerId);
-      panRef.current = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        startVx: viewport.x,
-        startVy: viewport.y,
-      };
-    },
-    [selectNode, viewport.x, viewport.y],
+  // Pan handlers — usePointerDrag wires setPointerCapture and rAF
+  // throttling. onDragStart returns null when the pointer down landed
+  // on a child (a Node) so node drags don't also trigger a pan.
+  const panHandlers = useMemo<Parameters<typeof usePointerDrag<PanStartData>>[0]>(
+    () => ({
+      onDragStart: (event) => {
+        if (event.target !== event.currentTarget) return null;
+        // Pointerdown on the empty canvas: clear any node selection.
+        selectNode(null);
+        return { initialViewport: useUiStore.getState().viewport };
+      },
+      onDrag: (_event, delta, startData) => {
+        setViewport({
+          x: startData.initialViewport.x + delta.totalDx,
+          y: startData.initialViewport.y + delta.totalDy,
+        });
+      },
+    }),
+    [selectNode, setViewport],
   );
-
-  const handlePointerMove = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      const state = panRef.current;
-      if (state?.pointerId !== event.pointerId) return;
-      setViewport({
-        x: state.startVx + (event.clientX - state.startX),
-        y: state.startVy + (event.clientY - state.startY),
-      });
-    },
-    [setViewport],
-  );
-
-  const handlePointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    const state = panRef.current;
-    if (state?.pointerId !== event.pointerId) return;
-    event.currentTarget.releasePointerCapture(event.pointerId);
-    panRef.current = null;
-  }, []);
+  const pointerHandlers = usePointerDrag<PanStartData>(panHandlers);
 
   return (
     <div
       role="application"
       aria-label="Workflow canvas"
       className="relative h-full w-full cursor-grab overflow-hidden bg-neutral-50"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+      onPointerDown={pointerHandlers.onPointerDown}
+      onPointerMove={pointerHandlers.onPointerMove}
+      onPointerUp={pointerHandlers.onPointerUp}
+      onPointerCancel={pointerHandlers.onPointerCancel}
     >
       <div
         data-testid="canvas-content"
