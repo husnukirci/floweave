@@ -1,10 +1,11 @@
 import type { JSX } from 'react';
 
+import { Canvas } from '@/canvas/Canvas';
+
 export function App(): JSX.Element {
   return (
-    <main>
-      <h1>floweave</h1>
-      <p>Workflow editor — in active development. See PLAN.md for status.</p>
-    </main>
+    <div className="h-screen w-screen overflow-hidden bg-white text-neutral-900 antialiased">
+      <Canvas />
+    </div>
   );
 }
