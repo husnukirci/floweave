@@ -80,6 +80,64 @@ describe('Node', () => {
     expect(getByTestId(`node-${result.value.id}`)).toHaveAttribute('data-selected', 'true');
   });
 
+  describe('keyboard', () => {
+    it('removes the focused node on Delete', () => {
+      const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      if (!a.ok) throw new Error('setup');
+      const { getByTestId } = render(<Node id={a.value.id} />);
+
+      fireEvent.keyDown(getByTestId(`node-${a.value.id}`), { key: 'Delete' });
+
+      expect(workflowStore.getState().nodes[a.value.id]).toBeUndefined();
+    });
+
+    it('removes the focused node on Backspace', () => {
+      const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      if (!a.ok) throw new Error('setup');
+      const { getByTestId } = render(<Node id={a.value.id} />);
+
+      fireEvent.keyDown(getByTestId(`node-${a.value.id}`), { key: 'Backspace' });
+
+      expect(workflowStore.getState().nodes[a.value.id]).toBeUndefined();
+    });
+
+    it('focuses the next node on ArrowRight (wraps to the first)', () => {
+      const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      const b = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      if (!a.ok || !b.ok) throw new Error('setup');
+      const { getByTestId } = render(
+        <>
+          <Node id={a.value.id} />
+          <Node id={b.value.id} />
+        </>,
+      );
+      const first = getByTestId(`node-${a.value.id}`);
+      first.focus();
+
+      fireEvent.keyDown(first, { key: 'ArrowRight' });
+
+      expect(document.activeElement).toBe(getByTestId(`node-${b.value.id}`));
+    });
+
+    it('focuses the previous node on ArrowLeft (wraps to the last)', () => {
+      const a = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      const b = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      if (!a.ok || !b.ok) throw new Error('setup');
+      const { getByTestId } = render(
+        <>
+          <Node id={a.value.id} />
+          <Node id={b.value.id} />
+        </>,
+      );
+      const first = getByTestId(`node-${a.value.id}`);
+      first.focus();
+
+      fireEvent.keyDown(first, { key: 'ArrowLeft' });
+
+      expect(document.activeElement).toBe(getByTestId(`node-${b.value.id}`));
+    });
+  });
+
   it('positions the node via style.left/top from node.position', () => {
     const result = workflowStore.getState().addNode({
       kind: 'task',
