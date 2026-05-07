@@ -34,3 +34,34 @@ export const selectEdgesByNode = (
   }
   return byNode;
 };
+
+export const selectEdgeIds = (state: WorkflowStoreState): readonly string[] =>
+  Object.keys(state.edges);
+
+export interface EdgeEndpoints {
+  source: { x: number; y: number } | null;
+  target: { x: number; y: number } | null;
+  sourceLabel: string;
+  targetLabel: string;
+}
+
+// Returns just the source/target positions and labels for an edge.
+// Per CLAUDE.md §4: each Edge subscribes to this minimal slice so an
+// unrelated node move does not re-render unrelated edges. Use with
+// useShallow at the call site.
+export const selectEdgeEndpoints =
+  (edgeId: string) =>
+  (state: WorkflowStoreState): EdgeEndpoints => {
+    const edge = state.edges[edgeId];
+    if (!edge) {
+      return { source: null, target: null, sourceLabel: '', targetLabel: '' };
+    }
+    const sourceNode = state.nodes[edge.source];
+    const targetNode = state.nodes[edge.target];
+    return {
+      source: sourceNode ? sourceNode.position : null,
+      target: targetNode ? targetNode.position : null,
+      sourceLabel: sourceNode ? sourceNode.data.label : '',
+      targetLabel: targetNode ? targetNode.data.label : '',
+    };
+  };

@@ -17,6 +17,7 @@ import { useUiStore } from '@/state/ui/uiStore';
 import { usePointerDrag } from '@/utils/pointer';
 import type { ViewportOffset } from '@/state/ui/uiStore';
 
+import { ConnectionLayer } from './ConnectionLayer';
 import { Node } from './Node';
 
 interface PanStartData {
@@ -67,10 +68,10 @@ export function Canvas(): JSX.Element {
         // Dynamic transform value cannot be a static Tailwind class.
         style={{ transform: `translate3d(${String(viewport.x)}px, ${String(viewport.y)}px, 0)` }}
       >
+        <ConnectionLayer />
         {nodeIds.map((id) => (
           <Node key={id} id={id} />
         ))}
-        {/* SVG edge overlay lands in Phase 3. */}
       </div>
       {nodeIds.length === 0 && <EmptyState />}
     </div>
