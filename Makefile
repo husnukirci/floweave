@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev test build clean up docker-build docker-run
+.PHONY: help install dev dev-server test build clean up docker-build docker-run
 
 help:  ## Show this help
 	@echo "floweave — make targets:"
@@ -13,8 +13,11 @@ help:  ## Show this help
 install:  ## Install dependencies and prepare git hooks
 	npm ci
 
-dev:  ## Start the Vite dev server
+dev:  ## Start the Vite dev server (run `make dev-server` in another terminal for the LLM proxy)
 	npm run dev
+
+dev-server:  ## Start the Hono LLM proxy on :3001 — needs ANTHROPIC_API_KEY in .env
+	npm run dev:server
 
 test:  ## Local quality gates: typecheck + lint + unit tests
 	npm run typecheck

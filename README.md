@@ -14,13 +14,106 @@ Embeddable Web Component for building BPMN-style workflows visually or by chatti
 nvm use            # Node 22 LTS via .nvmrc
 make install       # npm ci + git hooks
 make dev           # Vite dev server (Phase 2 onwards)
+make dev-server    # Hono LLM proxy on :3001 — needed for the chat panel
 make test          # typecheck + lint + tests
 make build         # production bundle
 ```
 
+`make dev` and `make dev-server` run side-by-side in two terminals during local development. Vite proxies `/api` to the Hono server, so `VITE_API_ENDPOINT` stays as the same-origin `/api/chat`.
+
 The full demo (`make up`) is a Phase 9 deliverable — it will run the LLM proxy server alongside a static-served `demo.html` via Docker compose, so `git clone` + setting `ANTHROPIC_API_KEY` + `make up` is enough.
 
 Run `make help` to list all available targets.
+
+## Running the LLM proxy
+
+The Hono server in `server/` is the only place an Anthropic API key is read. It exposes `POST /api/chat` (the agent-loop entry point) and `GET /healthz`. Source layout: `server/proxy.ts` (entry), `server/app.ts` (factory), `server/handlers/chat.ts` (handler), `server/logger.ts` (structured JSON logging).
+
+### Set up
+
+```bash
+cp .env.example .env
+# Edit .env and set ANTHROPIC_API_KEY=sk-ant-...
+make dev-server      # logs to stdout as one JSON line per event
+```
+
+Optional environment variables:
+
+| Var                 | Default             | Purpose                                                |
+| ------------------- | ------------------- | ------------------------------------------------------ |
+| `ANTHROPIC_API_KEY` | _(required)_        | Server exits 1 with a structured error log if missing. |
+| `ANTHROPIC_MODEL`   | `claude-sonnet-4-6` | Override the model the proxy passes to the SDK.        |
+| `PORT`              | `3001`              | Bind port. The Vite dev proxy expects `3001`.          |
+
+### Smoke test with `curl`
+
+Health check:
+
+```bash
+curl -s http://localhost:3001/healthz
+# {"ok":true}
+```
+
+Single-turn chat (no tools — the simplest end-to-end check that the API key is valid):
+
+```bash
+curl -s http://localhost:3001/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [{ "role": "user", "content": "Reply with exactly: pong" }]
+  }'
+```
+
+Expected response shape (subset of Anthropic's Messages API):
+
+```json
+{
+  "content": [{ "type": "text", "text": "pong" }],
+  "stop_reason": "end_turn",
+  "usage": { "input_tokens": 14, "output_tokens": 4 }
+}
+```
+
+Tool-use turn (asks the model to plan a workflow change — tool schemas come from `src/llm/tools.ts`):
+
+```bash
+curl -s http://localhost:3001/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [{ "role": "user", "content": "Add a start node at (0, 0) and a task node at (220, 0)." }],
+    "system": "You are a workflow editor assistant. Use the provided tools to make changes.",
+    "tools": [
+      {
+        "name": "add_node",
+        "description": "Add a new node.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "kind": { "type": "string", "enum": ["start", "end", "task", "custom"] },
+            "position": {
+              "type": "object",
+              "properties": { "x": { "type": "number" }, "y": { "type": "number" } },
+              "required": ["x", "y"]
+            }
+          },
+          "required": ["kind", "position"]
+        }
+      }
+    ]
+  }'
+```
+
+Expected: `stop_reason: "tool_use"` with one or more `tool_use` blocks the client agent loop in `src/llm/agentLoop.ts` would apply via `applyToolCall`.
+
+### Common errors
+
+| Status                                     | Cause                                                                                  | Fix                                                                         |
+| ------------------------------------------ | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `400 invalid JSON body`                    | malformed request body                                                                 | check `-d` payload is valid JSON                                            |
+| `400 'messages' must be a non-empty array` | empty or missing `messages`                                                            | include at least one user message                                           |
+| `400 each message 'role' must be ...`      | unsupported role (`system` is sent via the top-level `system` field, not as a message) | use `user` or `assistant`                                                   |
+| `502 upstream Anthropic API error`         | SDK call failed (bad key, rate limit, model id)                                        | check the proxy's `anthropic_error` log line and verify `ANTHROPIC_API_KEY` |
+| Server exits with `startup_failed`         | `ANTHROPIC_API_KEY` missing or empty                                                   | set it in `.env` and restart                                                |
 
 ## Architecture
 
@@ -30,14 +123,14 @@ Full reasoning behind each load-bearing choice lives in [docs/decisions.md](./do
 
 ## Tech choices
 
-| Area | Choice | Rationale |
-|---|---|---|
-| Component model | Native Custom Element wrapping React | True embeddability in any host page ([ADR-001](./docs/decisions.md)) |
-| State | Zustand × 3 stores, slice pattern, Records over arrays | O(1) lookup, fine-grained subscriptions, separate lifecycles ([ADR-002, ADR-003](./docs/decisions.md)) |
-| Canvas | HTML divs + SVG edges (hybrid) | Rich node content + clean bezier paths ([ADR-004](./docs/decisions.md)) |
-| Style isolation | Shadow DOM + constructable stylesheets, Tailwind v4 | Host CSS can't break the editor ([ADR-007, ADR-015](./docs/decisions.md)) |
-| LLM | Server-side Hono proxy + Anthropic SDK + atomic tools | API key never in the bundle, granular error recovery ([ADR-008, ADR-009](./docs/decisions.md)) |
-| Build | Vite library mode, single JS bundle | Drop-in `<script>` tag in any HTML page ([ADR-020](./docs/decisions.md)) |
+| Area            | Choice                                                 | Rationale                                                                                              |
+| --------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Component model | Native Custom Element wrapping React                   | True embeddability in any host page ([ADR-001](./docs/decisions.md))                                   |
+| State           | Zustand × 3 stores, slice pattern, Records over arrays | O(1) lookup, fine-grained subscriptions, separate lifecycles ([ADR-002, ADR-003](./docs/decisions.md)) |
+| Canvas          | HTML divs + SVG edges (hybrid)                         | Rich node content + clean bezier paths ([ADR-004](./docs/decisions.md))                                |
+| Style isolation | Shadow DOM + constructable stylesheets, Tailwind v4    | Host CSS can't break the editor ([ADR-007, ADR-015](./docs/decisions.md))                              |
+| LLM             | Server-side Hono proxy + Anthropic SDK + atomic tools  | API key never in the bundle, granular error recovery ([ADR-008, ADR-009](./docs/decisions.md))         |
+| Build           | Vite library mode, single JS bundle                    | Drop-in `<script>` tag in any HTML page ([ADR-020](./docs/decisions.md))                               |
 
 ## Scope
 

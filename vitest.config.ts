@@ -11,7 +11,7 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'server/**/*.{test,spec}.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
@@ -26,10 +26,15 @@ export default defineConfig({
         '.husky/**',
         '.claude/**',
       ],
-      // Per-directory thresholds per CLAUDE.md §9. src/llm stays loose
-      // until Phase 6 lands code there.
+      // Per-directory thresholds per CLAUDE.md §9.
       thresholds: {
         'src/state/workflow/**': {
+          lines: 90,
+          branches: 85,
+          functions: 90,
+          statements: 90,
+        },
+        'src/llm/**': {
           lines: 90,
           branches: 85,
           functions: 90,
