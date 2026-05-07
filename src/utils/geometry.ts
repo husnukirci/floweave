@@ -4,8 +4,6 @@
 // World space: positions stored in the workflow store (WorkflowNode.position).
 // Screen space: pixel positions relative to the Canvas element.
 // They differ by the viewport pan offset (no zoom in v1 per ADR-006).
-//
-// Stub for TDD: real implementation lands in commit 3.
 
 export interface Point {
   x: number;
@@ -22,18 +20,18 @@ export interface RectOffset {
   top: number;
 }
 
-export function screenToWorld(_screen: Point, _viewport: Viewport): Point {
-  throw new Error('screenToWorld: not implemented (stub for TDD test commit)');
+export function screenToWorld(screen: Point, viewport: Viewport): Point {
+  return { x: screen.x - viewport.x, y: screen.y - viewport.y };
 }
 
-export function worldToScreen(_world: Point, _viewport: Viewport): Point {
-  throw new Error('worldToScreen: not implemented (stub for TDD test commit)');
+export function worldToScreen(world: Point, viewport: Viewport): Point {
+  return { x: world.x + viewport.x, y: world.y + viewport.y };
 }
 
 export function getCanvasRelativePoint(
-  _clientX: number,
-  _clientY: number,
-  _canvasRect: RectOffset,
+  clientX: number,
+  clientY: number,
+  canvasRect: RectOffset,
 ): Point {
-  throw new Error('getCanvasRelativePoint: not implemented (stub for TDD test commit)');
+  return { x: clientX - canvasRect.left, y: clientY - canvasRect.top };
 }

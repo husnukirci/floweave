@@ -3,35 +3,36 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRafThrottler, type RequestFrame } from './pointer';
 
 describe('createRafThrottler', () => {
-  // Manual frame scheduler — a queue of pending callbacks that the test
-  // can advance one frame at a time. Replaces requestAnimationFrame so
-  // the throttler is observed deterministically.
-  let pending: FrameRequestCallback[] = [];
-  let nextHandle = 0;
-  let cancelled: number[] = [];
+  // Manual frame scheduler — a Map of handle → callback so cancel
+  // actually removes the callback (mirroring real cancelAnimationFrame
+  // behaviour). Tests advance one frame at a time via advanceFrame.
+  let scheduled: Map<number, FrameRequestCallback>;
+  let nextHandle: number;
+  let cancelled: number[];
   const fakeRaf: RequestFrame = (callback) => {
     nextHandle += 1;
-    pending.push(callback);
+    scheduled.set(nextHandle, callback);
     return nextHandle;
   };
   const fakeCancel = (handle: number): void => {
     cancelled.push(handle);
+    scheduled.delete(handle);
   };
 
   const advanceFrame = (timestamp = 0): void => {
-    const frame = pending;
-    pending = [];
-    for (const cb of frame) cb(timestamp);
+    const callbacks = Array.from(scheduled.values());
+    scheduled.clear();
+    for (const cb of callbacks) cb(timestamp);
   };
 
   beforeEach(() => {
-    pending = [];
+    scheduled = new Map();
     nextHandle = 0;
     cancelled = [];
   });
 
   afterEach(() => {
-    pending = [];
+    scheduled.clear();
   });
 
   it('does not call fn synchronously on push', () => {
@@ -116,6 +117,14 @@ describe('createRafThrottler', () => {
     throttler.cancel();
 
     expect(cancelled).toContain(expectedHandle);
+  });
+
+  it('cancel is a no-op when no frame is scheduled', () => {
+    const fn = vi.fn();
+    const throttler = createRafThrottler<number>(fn, { raf: fakeRaf, cancelRaf: fakeCancel });
+    throttler.cancel();
+    expect(fn).not.toHaveBeenCalled();
+    expect(cancelled).toEqual([]);
   });
 
   it('falls back to global requestAnimationFrame when no raf option supplied', () => {
