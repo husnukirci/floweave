@@ -11,14 +11,20 @@
 // mutations are not rolled back (partial application is acceptable —
 // the LLM agent loop sees the failure and decides next steps). True
 // atomic rollback is a Tier 2 add-on.
-//
-// Stub for TDD: actions throw so the test commit's tests fail loudly.
-// Real implementation lands in commit 6.
 
 import type { StateCreator } from 'zustand';
 
 import type { WorkflowStoreState } from '../storeState';
-import type { Mutation, Result } from '../types';
+import type {
+  CustomNodeType,
+  Mutation,
+  Result,
+  StoreError,
+  Variable,
+  WorkflowEdge,
+  WorkflowNode,
+  WorkflowState,
+} from '../types';
 
 export interface IoSlice {
   exportJSON: () => string;
@@ -27,25 +33,161 @@ export interface IoSlice {
   clear: () => void;
 }
 
-const NOT_IMPLEMENTED = (action: string): Error =>
-  new Error(`ioSlice.${action}: not implemented (stub for TDD test commit)`);
+const CUSTOM_NODE_TYPES: readonly CustomNodeType[] = [
+  'createAccount',
+  'createPolicy',
+  'createDocument',
+  'sendEmail',
+  'verifyPolicy',
+  'assessDamage',
+  'calculatePayout',
+  'approveClaim',
+  'denyClaim',
+];
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isVariable(value: unknown): value is Variable {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
+
+function isPosition(value: unknown): value is { x: number; y: number } {
+  return isObject(value) && typeof value.x === 'number' && typeof value.y === 'number';
+}
+
+function isNodeData(value: unknown): value is WorkflowNode['data'] {
+  if (!isObject(value)) return false;
+  if (typeof value.label !== 'string') return false;
+  if (!isObject(value.variables)) return false;
+  return Object.values(value.variables).every(isVariable);
+}
+
+function isCustomNodeType(value: unknown): value is CustomNodeType {
+  return typeof value === 'string' && (CUSTOM_NODE_TYPES as readonly string[]).includes(value);
+}
+
+function isWorkflowNode(value: unknown): value is WorkflowNode {
+  if (!isObject(value)) return false;
+  if (typeof value.id !== 'string') return false;
+  if (!isPosition(value.position)) return false;
+  if (!isNodeData(value.data)) return false;
+  switch (value.kind) {
+    case 'start':
+    case 'end':
+    case 'task':
+      return true;
+    case 'custom':
+      return isCustomNodeType(value.customType);
+    default:
+      return false;
+  }
+}
+
+function isWorkflowEdge(value: unknown): value is WorkflowEdge {
+  return (
+    isObject(value) &&
+    typeof value.id === 'string' &&
+    typeof value.source === 'string' &&
+    typeof value.target === 'string'
+  );
+}
+
+function isWorkflowState(value: unknown): value is WorkflowState {
+  if (!isObject(value)) return false;
+  if (!isObject(value.nodes)) return false;
+  if (!isObject(value.edges)) return false;
+  if (!Object.values(value.nodes).every(isWorkflowNode)) return false;
+  if (!Object.values(value.edges).every(isWorkflowEdge)) return false;
+  return true;
+}
+
+function applyMutation(store: WorkflowStoreState, mutation: Mutation): Result<unknown> {
+  switch (mutation.kind) {
+    case 'addNode':
+      return store.addNode(mutation.input);
+    case 'updateNode':
+      return store.updateNode(mutation.id, mutation.patch);
+    case 'moveNode':
+      return store.moveNode(mutation.id, mutation.position);
+    case 'removeNode':
+      return store.removeNode(mutation.id);
+    case 'connectNodes':
+      return store.connectNodes(mutation.input);
+    case 'removeEdge':
+      return store.removeEdge(mutation.id);
+  }
+}
+
+function mutationFailed(index: number, mutation: Mutation, cause: StoreError): StoreError {
+  return {
+    code: 'MUTATION_FAILED',
+    message: `Mutation ${String(index)} (${mutation.kind}) failed: ${cause.message}`,
+    details: { index, kind: mutation.kind, cause },
+  };
+}
 
 export const createIoSlice: StateCreator<
   WorkflowStoreState,
   [['zustand/immer', never]],
   [],
   IoSlice
-> = () => ({
+> = (set, get) => ({
   exportJSON: () => {
-    throw NOT_IMPLEMENTED('exportJSON');
+    const { nodes, edges } = get();
+    return JSON.stringify({ nodes, edges });
   },
-  importJSON: () => {
-    throw NOT_IMPLEMENTED('importJSON');
+
+  importJSON: (json) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      return {
+        ok: false,
+        error: { code: 'INVALID_JSON', message: 'Failed to parse workflow JSON' },
+      };
+    }
+
+    if (!isWorkflowState(parsed)) {
+      return {
+        ok: false,
+        error: {
+          code: 'SCHEMA_INVALID',
+          message: 'Workflow JSON does not match the expected schema',
+        },
+      };
+    }
+
+    set((state) => {
+      state.nodes = parsed.nodes;
+      state.edges = parsed.edges;
+    });
+
+    return {
+      ok: true,
+      value: {
+        nodeCount: Object.keys(parsed.nodes).length,
+        edgeCount: Object.keys(parsed.edges).length,
+      },
+    };
   },
-  applyMutations: () => {
-    throw NOT_IMPLEMENTED('applyMutations');
+
+  applyMutations: (mutations) => {
+    for (const [index, mutation] of mutations.entries()) {
+      const result = applyMutation(get(), mutation);
+      if (!result.ok) {
+        return { ok: false, error: mutationFailed(index, mutation, result.error) };
+      }
+    }
+    return { ok: true, value: { applied: mutations.length } };
   },
+
   clear: () => {
-    throw NOT_IMPLEMENTED('clear');
+    set((state) => {
+      state.nodes = {};
+      state.edges = {};
+    });
   },
 });
