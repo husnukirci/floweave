@@ -25,14 +25,15 @@ export default defineConfig({
         '.husky/**',
         '.claude/**',
       ],
-      // Real per-directory thresholds from CLAUDE.md §9 land in Phase 1 once
-      // src/state, src/llm, src/utils have actual tests. Today: stubs that
-      // always pass so test:cov runs cleanly during scaffolding.
+      // Per-directory thresholds per CLAUDE.md §9. src/llm and src/utils
+      // stay loose until they have code (Phases 2 + 6).
       thresholds: {
-        lines: 0,
-        branches: 0,
-        functions: 0,
-        statements: 0,
+        'src/state/workflow/**': {
+          lines: 90,
+          branches: 85,
+          functions: 90,
+          statements: 90,
+        },
       },
     },
   },
