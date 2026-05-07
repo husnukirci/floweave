@@ -1,0 +1,16 @@
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+
+# Type:    feat | fix | refactor | perf | test | docs | chore | build | ci
+# Scope:   store | canvas | panels | llm | wc | infra | deps | a11y |
+#          nodes | utils | state | server | demo | tooling | claude | ci
+# Subject: imperative mood, lowercase, no period, ≤72 chars
+# Body:    why, not what (wrap at 80). Reference rubric verification:
+#          verified: typecheck/lint/tests pass
+# Footer:  BREAKING CHANGE: ... | Refs: #N
+#
+# Optional one-liner: enable this template per-clone via
+#   git config commit.template .gitmessage
