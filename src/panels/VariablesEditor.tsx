@@ -16,8 +16,8 @@ import {
   useState,
 } from 'react';
 
+import { useWorkflowStore, useWorkflowStoreApi } from '@/state/StoresProvider';
 import { selectNodeById } from '@/state/workflow/selectors';
-import { workflowStore } from '@/state/workflow/instance';
 import type { Variable } from '@/state/workflow/types';
 
 interface VariablesEditorProps {
@@ -62,7 +62,8 @@ function rowsToVariables(rows: readonly Row[]): Record<string, Variable> {
 }
 
 export function VariablesEditor({ nodeId }: VariablesEditorProps): JSX.Element | null {
-  const node = workflowStore(selectNodeById(nodeId));
+  const node = useWorkflowStore(selectNodeById(nodeId));
+  const workflowStoreApi = useWorkflowStoreApi();
   const [rows, setRows] = useState<Row[]>(() =>
     Object.entries(node?.data.variables ?? {}).map(([k, v]) => ({
       uiId: nanoid(),
@@ -75,7 +76,7 @@ export function VariablesEditor({ nodeId }: VariablesEditorProps): JSX.Element |
   if (!node) return null;
 
   const commit = (next: readonly Row[]): void => {
-    workflowStore.getState().updateNode(nodeId, {
+    workflowStoreApi.getState().updateNode(nodeId, {
       data: { label: node.data.label, variables: rowsToVariables(next) },
     });
   };

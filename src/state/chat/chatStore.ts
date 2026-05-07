@@ -11,8 +11,7 @@ import { nanoid } from 'nanoid';
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 
 import { runAgentLoop } from '@/llm/agentLoop';
-import { useUiStore, type UiState } from '@/state/ui/uiStore';
-import { workflowStore as defaultWorkflowStore } from '@/state/workflow/instance';
+import type { UiState } from '@/state/ui/uiStore';
 import type { WorkflowStoreState } from '@/state/workflow/storeState';
 import type { Result, StoreError } from '@/state/workflow/types';
 
@@ -57,24 +56,19 @@ const initialState: Pick<ChatState, 'messages' | 'status' | 'error' | 'abortCont
 export type ChatStore = UseBoundStore<StoreApi<ChatState>>;
 
 export interface CreateChatStoreOptions {
+  /** Workflow store the agent loop applies mutations to. */
+  workflowStore: StoreApi<WorkflowStoreState>;
+  /**
+   * UI store the chat surfaces side effects through — e.g.
+   * markRecentlyAdded for the AI-added pulse highlight.
+   */
+  uiStore: StoreApi<UiState>;
   /**
    * Endpoint the chat sendMessage POSTs to. Defaults to
    * import.meta.env.VITE_API_ENDPOINT, falling back to '/api/chat'.
    * Tests pass a fixture URL alongside an MSW handler.
    */
   endpoint?: string;
-  /**
-   * Workflow store the agent loop applies mutations to. Defaults to the
-   * module-level singleton in src/state/workflow/instance.ts. Tests pass
-   * a fresh store per case so cases are independent.
-   */
-  workflowStore?: StoreApi<WorkflowStoreState>;
-  /**
-   * UI store the chat surfaces side effects through (e.g.
-   * markRecentlyAdded for the AI-added pulse highlight). Defaults to
-   * the module-level singleton.
-   */
-  uiStore?: StoreApi<UiState>;
   /** Injected for tests; defaults to global fetch. */
   fetchImpl?: typeof fetch;
 }
@@ -91,10 +85,9 @@ function isAbortError(message: string): boolean {
   return message.toLowerCase().includes('abort');
 }
 
-export function createChatStore(options: CreateChatStoreOptions = {}): ChatStore {
+export function createChatStore(options: CreateChatStoreOptions): ChatStore {
+  const { workflowStore, uiStore } = options;
   const endpoint = options.endpoint ?? defaultEndpoint();
-  const workflowStore = options.workflowStore ?? defaultWorkflowStore;
-  const uiStore = options.uiStore ?? useUiStore;
   const fetchImpl = options.fetchImpl;
 
   return create<ChatState>()((set, get) => ({
@@ -210,5 +203,3 @@ export function createChatStore(options: CreateChatStoreOptions = {}): ChatStore
     },
   }));
 }
-
-export const useChatStore = createChatStore();

@@ -9,7 +9,7 @@
 
 import { type JSX, useEffect } from 'react';
 
-import { useUiStore } from '@/state/ui/uiStore';
+import { useUiStore } from '@/state/StoresProvider';
 
 const AUTO_DISMISS_MS = 3000;
 

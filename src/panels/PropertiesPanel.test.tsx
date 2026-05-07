@@ -2,37 +2,33 @@
 // editing, and kind/customType chips. Bound to the singleton workflow
 // store; per-test isolation via clear() in beforeEach.
 
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { PropertiesPanel } from './PropertiesPanel';
-import { workflowStore } from '@/state/workflow/instance';
-import { useUiStore } from '@/state/ui/uiStore';
+import { createUiStore, type UiStore } from '@/state/ui/uiStore';
+import {
+  createTestWorkflowStore,
+  renderWithStores,
+  type TestWorkflowStore,
+} from '@/test/factories';
 
-const resetUi = (): void => {
-  useUiStore.setState({
-    selectedNodeId: null,
-    selectedEdgeId: null,
-    hoveredNodeId: null,
-    hoveredEdgeId: null,
-    viewport: { x: 0, y: 0 },
-    isConnecting: false,
-    connectingFromNodeId: null,
-    connectingCursor: null,
-    panels: { properties: false, chat: false },
-    notification: null,
-  });
-};
+import { PropertiesPanel } from './PropertiesPanel';
 
 describe('PropertiesPanel', () => {
+  let workflowStore: TestWorkflowStore;
+  let uiStore: UiStore;
+
+  const renderPanel = (ui: ReactElement) =>
+    renderWithStores(ui, { stores: { workflowStore, uiStore } });
+
   beforeEach(() => {
-    workflowStore.getState().clear();
-    resetUi();
+    workflowStore = createTestWorkflowStore();
+    uiStore = createUiStore();
   });
 
   afterEach(() => {
     workflowStore.getState().clear();
-    resetUi();
   });
 
   it('renders the panel with the node label as the input value', () => {
@@ -43,7 +39,7 @@ describe('PropertiesPanel', () => {
     });
     if (!result.ok) throw new Error('setup');
 
-    const { getByTestId } = render(<PropertiesPanel nodeId={result.value.id} />);
+    const { getByTestId } = renderPanel(<PropertiesPanel nodeId={result.value.id} />);
     const input = getByTestId('properties-label-input') as HTMLInputElement;
 
     expect(input.value).toBe('Verify Coverage');
@@ -56,7 +52,7 @@ describe('PropertiesPanel', () => {
     });
     if (!result.ok) throw new Error('setup');
 
-    const { getByTestId } = render(<PropertiesPanel nodeId={result.value.id} />);
+    const { getByTestId } = renderPanel(<PropertiesPanel nodeId={result.value.id} />);
     expect(getByTestId('properties-kind')).toHaveTextContent(/task/i);
   });
 
@@ -68,12 +64,12 @@ describe('PropertiesPanel', () => {
     });
     if (!result.ok) throw new Error('setup');
 
-    const { getByTestId } = render(<PropertiesPanel nodeId={result.value.id} />);
+    const { getByTestId } = renderPanel(<PropertiesPanel nodeId={result.value.id} />);
     expect(getByTestId('properties-custom-type')).toHaveTextContent('Verify Policy');
   });
 
   it('renders nothing when the node id is unknown', () => {
-    const { container } = render(<PropertiesPanel nodeId="missing" />);
+    const { container } = renderPanel(<PropertiesPanel nodeId="missing" />);
     expect(container.firstChild).toBeNull();
   });
 
@@ -85,7 +81,7 @@ describe('PropertiesPanel', () => {
     });
     if (!result.ok) throw new Error('setup');
 
-    const { getByTestId } = render(<PropertiesPanel nodeId={result.value.id} />);
+    const { getByTestId } = renderPanel(<PropertiesPanel nodeId={result.value.id} />);
     const input = getByTestId('properties-label-input') as HTMLInputElement;
 
     fireEvent.change(input, { target: { value: 'Updated' } });
@@ -103,7 +99,7 @@ describe('PropertiesPanel', () => {
     });
     if (!result.ok) throw new Error('setup');
 
-    const { getByTestId } = render(<PropertiesPanel nodeId={result.value.id} />);
+    const { getByTestId } = renderPanel(<PropertiesPanel nodeId={result.value.id} />);
     expect(document.activeElement).toBe(getByTestId('properties-label-input'));
   });
 
@@ -115,7 +111,7 @@ describe('PropertiesPanel', () => {
     });
     if (!result.ok) throw new Error('setup');
 
-    const { getByTestId } = render(<PropertiesPanel nodeId={result.value.id} />);
+    const { getByTestId } = renderPanel(<PropertiesPanel nodeId={result.value.id} />);
     const input = getByTestId('properties-label-input') as HTMLInputElement;
 
     fireEvent.change(input, { target: { value: 'Submitted' } });

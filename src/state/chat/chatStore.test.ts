@@ -21,7 +21,10 @@ describe('chatStore', () => {
   let store: ChatStore;
 
   beforeEach(() => {
-    store = createChatStore();
+    store = createChatStore({
+      workflowStore: createTestWorkflowStore(),
+      uiStore: createUiStore(),
+    });
   });
 
   it('starts idle with no messages, no error, no in-flight controller', () => {
@@ -46,7 +49,11 @@ describe('chatStore', () => {
 
     beforeEach(() => {
       workflowStore = createTestWorkflowStore();
-      chat = createChatStore({ endpoint: ENDPOINT, workflowStore });
+      chat = createChatStore({
+        endpoint: ENDPOINT,
+        workflowStore,
+        uiStore: createUiStore(),
+      });
     });
 
     it('appends a user message and an assistant message on a no-tool turn', async () => {

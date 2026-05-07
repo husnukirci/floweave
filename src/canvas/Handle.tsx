@@ -9,8 +9,7 @@
 import clsx from 'clsx';
 import { type JSX, type PointerEvent as ReactPointerEvent, useMemo } from 'react';
 
-import { workflowStore } from '@/state/workflow/instance';
-import { useUiStore } from '@/state/ui/uiStore';
+import { useUiStore, useUiStoreApi, useWorkflowStoreApi } from '@/state/StoresProvider';
 import { usePointerDrag, type PointerDragHandlers } from '@/utils/pointer';
 
 export type HandleType = 'input' | 'output';
@@ -57,6 +56,8 @@ export function Handle({ nodeId, type }: HandleProps): JSX.Element {
   const startConnecting = useUiStore((s) => s.startConnecting);
   const updateConnectingCursor = useUiStore((s) => s.updateConnectingCursor);
   const finishConnecting = useUiStore((s) => s.finishConnecting);
+  const workflowStoreApi = useWorkflowStoreApi();
+  const uiStoreApi = useUiStoreApi();
 
   const dragHandlers = useMemo<PointerDragHandlers<DragData>>(
     () => ({
@@ -82,12 +83,12 @@ export function Handle({ nodeId, type }: HandleProps): JSX.Element {
         const targetNodeId = dropTarget?.getAttribute('data-node-id');
 
         if (targetNodeId && targetNodeId !== data.sourceNodeId) {
-          const result = workflowStore
+          const result = workflowStoreApi
             .getState()
             .connectNodes({ source: data.sourceNodeId, target: targetNodeId });
           if (!result.ok) {
             const reason = result.error.details?.reason;
-            useUiStore.getState().setNotification({
+            uiStoreApi.getState().setNotification({
               code: result.error.code,
               message: friendlyConnectionError(typeof reason === 'string' ? reason : null),
             });
@@ -96,7 +97,15 @@ export function Handle({ nodeId, type }: HandleProps): JSX.Element {
         finishConnecting();
       },
     }),
-    [type, nodeId, startConnecting, updateConnectingCursor, finishConnecting],
+    [
+      type,
+      nodeId,
+      startConnecting,
+      updateConnectingCursor,
+      finishConnecting,
+      workflowStoreApi,
+      uiStoreApi,
+    ],
   );
 
   const pointerHandlers = usePointerDrag<DragData>(dragHandlers);

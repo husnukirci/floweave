@@ -10,14 +10,14 @@
 import type { JSX } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
+import { useWorkflowStore } from '@/state/StoresProvider';
 import { selectEdgeIds } from '@/state/workflow/selectors';
-import { workflowStore } from '@/state/workflow/instance';
 
 import { Edge } from './Edge';
 import { GhostEdge } from './GhostEdge';
 
 export function ConnectionLayer(): JSX.Element {
-  const edgeIds = workflowStore(useShallow(selectEdgeIds));
+  const edgeIds = useWorkflowStore(useShallow(selectEdgeIds));
 
   return (
     <svg

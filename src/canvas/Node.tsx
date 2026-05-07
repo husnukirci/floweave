@@ -10,11 +10,15 @@ import clsx from 'clsx';
 import { type JSX, type KeyboardEvent, type MouseEvent, memo, useCallback, useMemo } from 'react';
 
 import { CUSTOM_NODE_REGISTRY, type CustomNodeSpec } from '@/nodes/registry';
+import {
+  useUiStore,
+  useUiStoreApi,
+  useWorkflowStore,
+  useWorkflowStoreApi,
+} from '@/state/StoresProvider';
 import { selectNodeById } from '@/state/workflow/selectors';
-import { workflowStore } from '@/state/workflow/instance';
-import { useUiStore } from '@/state/ui/uiStore';
-import { usePointerDrag } from '@/utils/pointer';
 import type { NodePosition } from '@/state/workflow/types';
+import { usePointerDrag } from '@/utils/pointer';
 
 import { Handle } from './Handle';
 
@@ -27,7 +31,9 @@ interface DragStartData {
 }
 
 function NodeComponent({ id }: NodeProps): JSX.Element | null {
-  const node = workflowStore(selectNodeById(id));
+  const node = useWorkflowStore(selectNodeById(id));
+  const workflowStoreApi = useWorkflowStoreApi();
+  const uiStoreApi = useUiStoreApi();
   const isSelected = useUiStore((s) => s.selectedNodeId === id);
   const selectNode = useUiStore((s) => s.selectNode);
 
@@ -59,7 +65,7 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
   // → click on the focused button.
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>) => {
-      const ui = useUiStore.getState();
+      const ui = uiStoreApi.getState();
 
       // Connection-mode keys take priority when isConnecting is active.
       if (ui.isConnecting) {
@@ -73,7 +79,7 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
           const source = ui.connectingFromNodeId;
           if (source && source !== id) {
             event.preventDefault();
-            const result = workflowStore.getState().connectNodes({ source, target: id });
+            const result = workflowStoreApi.getState().connectNodes({ source, target: id });
             if (!result.ok) {
               const reason = result.error.details?.reason;
               ui.setNotification({
@@ -93,7 +99,7 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
         // FROM end (which can't be a source) is also disallowed. The
         // store will reject these, but suppress the keystroke for
         // end-kind nodes to avoid a confusing UI flash.
-        const node = workflowStore.getState().nodes[id];
+        const node = workflowStoreApi.getState().nodes[id];
         if (!node || node.kind === 'end') return;
         event.preventDefault();
         ui.startConnecting(id);
@@ -106,7 +112,7 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
 
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
-        workflowStore.getState().removeNode(id);
+        workflowStoreApi.getState().removeNode(id);
         return;
       }
       if (
@@ -117,10 +123,10 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
       ) {
         event.preventDefault();
         const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 'next' : 'prev';
-        focusAdjacentNode(id, direction);
+        focusAdjacentNode(id, direction, Object.keys(workflowStoreApi.getState().nodes));
       }
     },
-    [id],
+    [id, uiStoreApi, workflowStoreApi],
   );
 
   // Drag handler set — usePointerDrag wires setPointerCapture and rAF
@@ -130,20 +136,20 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
   const dragHandlers = useMemo<Parameters<typeof usePointerDrag<DragStartData>>[0]>(
     () => ({
       onDragStart: (event) => {
-        const current = workflowStore.getState().nodes[id];
+        const current = workflowStoreApi.getState().nodes[id];
         if (!current) return null;
         event.stopPropagation();
         selectNode(id);
         return { initialPosition: current.position };
       },
       onDrag: (_event, delta, startData) => {
-        workflowStore.getState().moveNode(id, {
+        workflowStoreApi.getState().moveNode(id, {
           x: startData.initialPosition.x + delta.totalDx,
           y: startData.initialPosition.y + delta.totalDy,
         });
       },
     }),
-    [id, selectNode],
+    [id, selectNode, workflowStoreApi],
   );
   const pointerHandlers = usePointerDrag<DragStartData>(dragHandlers);
 
@@ -205,13 +211,16 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
 
 export const Node = memo(NodeComponent);
 
-function focusAdjacentNode(currentId: string, direction: 'next' | 'prev'): void {
-  const ids = Object.keys(workflowStore.getState().nodes);
-  const currentIndex = ids.indexOf(currentId);
+function focusAdjacentNode(
+  currentId: string,
+  direction: 'next' | 'prev',
+  nodeIds: readonly string[],
+): void {
+  const currentIndex = nodeIds.indexOf(currentId);
   if (currentIndex === -1) return;
   const offset = direction === 'next' ? 1 : -1;
-  const nextIndex = (currentIndex + offset + ids.length) % ids.length;
-  const nextId = ids[nextIndex];
+  const nextIndex = (currentIndex + offset + nodeIds.length) % nodeIds.length;
+  const nextId = nodeIds[nextIndex];
   if (nextId === undefined) return;
   const target = document.querySelector(`[data-testid="node-${nextId}"]`);
   if (target instanceof HTMLElement) target.focus();

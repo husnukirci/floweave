@@ -3,28 +3,27 @@
 // rest of the canvas-level tests; per-test isolation via clear() in
 // beforeEach.
 
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createUiStore, type UiStore } from '@/state/ui/uiStore';
+import {
+  createTestWorkflowStore,
+  renderWithStores,
+  type TestWorkflowStore,
+} from '@/test/factories';
+
 import { Toolbar } from './Toolbar';
-import { workflowStore } from '@/state/workflow/instance';
-import { useUiStore } from '@/state/ui/uiStore';
 
 describe('Toolbar', () => {
+  let workflowStore: TestWorkflowStore;
+  let uiStore: UiStore;
+
+  const renderToolbar = () => renderWithStores(<Toolbar />, { stores: { workflowStore, uiStore } });
+
   beforeEach(() => {
-    workflowStore.getState().clear();
-    useUiStore.setState({
-      selectedNodeId: null,
-      selectedEdgeId: null,
-      hoveredNodeId: null,
-      hoveredEdgeId: null,
-      viewport: { x: 0, y: 0 },
-      isConnecting: false,
-      connectingFromNodeId: null,
-      connectingCursor: null,
-      panels: { properties: false, chat: false },
-      notification: null,
-    });
+    workflowStore = createTestWorkflowStore();
+    uiStore = createUiStore();
   });
 
   afterEach(() => {
@@ -32,7 +31,7 @@ describe('Toolbar', () => {
   });
 
   it('renders the four primary buttons', () => {
-    const { getByTestId } = render(<Toolbar />);
+    const { getByTestId } = renderToolbar();
 
     expect(getByTestId('toolbar-add-button')).toBeInTheDocument();
     expect(getByTestId('toolbar-import-button')).toBeInTheDocument();
@@ -42,7 +41,7 @@ describe('Toolbar', () => {
   });
 
   it('opens the add menu on click and closes again on a second click', () => {
-    const { getByTestId, queryByTestId } = render(<Toolbar />);
+    const { getByTestId, queryByTestId } = renderToolbar();
     const addButton = getByTestId('toolbar-add-button');
 
     expect(queryByTestId('toolbar-add-menu')).toBeNull();
@@ -57,7 +56,7 @@ describe('Toolbar', () => {
   });
 
   it('adds a basic node when its menu item is clicked', () => {
-    const { getByTestId } = render(<Toolbar />);
+    const { getByTestId } = renderToolbar();
 
     fireEvent.click(getByTestId('toolbar-add-button'));
     fireEvent.click(getByTestId('toolbar-add-task'));
@@ -68,7 +67,7 @@ describe('Toolbar', () => {
   });
 
   it('adds a custom node carrying the customType discriminant', () => {
-    const { getByTestId } = render(<Toolbar />);
+    const { getByTestId } = renderToolbar();
 
     fireEvent.click(getByTestId('toolbar-add-button'));
     fireEvent.click(getByTestId('toolbar-add-verifyPolicy'));
@@ -80,7 +79,7 @@ describe('Toolbar', () => {
   });
 
   it('closes the menu after an add', () => {
-    const { getByTestId, queryByTestId } = render(<Toolbar />);
+    const { getByTestId, queryByTestId } = renderToolbar();
     fireEvent.click(getByTestId('toolbar-add-button'));
     fireEvent.click(getByTestId('toolbar-add-start'));
 
@@ -88,7 +87,7 @@ describe('Toolbar', () => {
   });
 
   it('closes the menu when a click lands outside', () => {
-    const { getByTestId, queryByTestId } = render(<Toolbar />);
+    const { getByTestId, queryByTestId } = renderToolbar();
     fireEvent.click(getByTestId('toolbar-add-button'));
     expect(queryByTestId('toolbar-add-menu')).toBeInTheDocument();
 
@@ -103,7 +102,7 @@ describe('Toolbar', () => {
     window.confirm = vi.fn(() => true);
     workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
 
-    const { getByTestId } = render(<Toolbar />);
+    const { getByTestId } = renderToolbar();
     fireEvent.click(getByTestId('toolbar-clear-button'));
 
     expect(Object.keys(workflowStore.getState().nodes)).toHaveLength(0);
@@ -115,7 +114,7 @@ describe('Toolbar', () => {
     window.confirm = vi.fn(() => false);
     workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
 
-    const { getByTestId } = render(<Toolbar />);
+    const { getByTestId } = renderToolbar();
     fireEvent.click(getByTestId('toolbar-clear-button'));
 
     expect(Object.keys(workflowStore.getState().nodes)).toHaveLength(1);
@@ -123,20 +122,20 @@ describe('Toolbar', () => {
   });
 
   it('toggles the chat panel on click', () => {
-    const { getByTestId } = render(<Toolbar />);
-    expect(useUiStore.getState().panels.chat).toBe(false);
+    const { getByTestId } = renderToolbar();
+    expect(uiStore.getState().panels.chat).toBe(false);
 
     fireEvent.click(getByTestId('toolbar-chat-button'));
-    expect(useUiStore.getState().panels.chat).toBe(true);
+    expect(uiStore.getState().panels.chat).toBe(true);
     expect(getByTestId('toolbar-chat-button')).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(getByTestId('toolbar-chat-button'));
-    expect(useUiStore.getState().panels.chat).toBe(false);
+    expect(uiStore.getState().panels.chat).toBe(false);
   });
 
   describe('keyboard navigation', () => {
     it('focuses the first item when the menu opens', async () => {
-      const { getByTestId } = render(<Toolbar />);
+      const { getByTestId } = renderToolbar();
       fireEvent.click(getByTestId('toolbar-add-button'));
 
       // useEffect runs after render — wait a microtask
@@ -145,7 +144,7 @@ describe('Toolbar', () => {
     });
 
     it('ArrowDown moves focus to the next menu item', async () => {
-      const { getByTestId } = render(<Toolbar />);
+      const { getByTestId } = renderToolbar();
       fireEvent.click(getByTestId('toolbar-add-button'));
       await Promise.resolve();
 
@@ -154,7 +153,7 @@ describe('Toolbar', () => {
     });
 
     it('ArrowUp from the first item wraps to the last', async () => {
-      const { getByTestId } = render(<Toolbar />);
+      const { getByTestId } = renderToolbar();
       fireEvent.click(getByTestId('toolbar-add-button'));
       await Promise.resolve();
 
@@ -164,7 +163,7 @@ describe('Toolbar', () => {
     });
 
     it('Escape closes the menu and returns focus to the Add button', async () => {
-      const { getByTestId, queryByTestId } = render(<Toolbar />);
+      const { getByTestId, queryByTestId } = renderToolbar();
       fireEvent.click(getByTestId('toolbar-add-button'));
       await Promise.resolve();
 
@@ -175,7 +174,7 @@ describe('Toolbar', () => {
     });
 
     it('Home jumps to the first item; End jumps to the last', async () => {
-      const { getByTestId } = render(<Toolbar />);
+      const { getByTestId } = renderToolbar();
       fireEvent.click(getByTestId('toolbar-add-button'));
       await Promise.resolve();
 

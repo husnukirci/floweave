@@ -17,8 +17,8 @@ import {
 } from 'react';
 
 import { CUSTOM_NODE_REGISTRY } from '@/nodes/registry';
+import { useWorkflowStore, useWorkflowStoreApi } from '@/state/StoresProvider';
 import { selectNodeById } from '@/state/workflow/selectors';
-import { workflowStore } from '@/state/workflow/instance';
 import type { WorkflowNode } from '@/state/workflow/types';
 
 import { VariablesEditor } from './VariablesEditor';
@@ -28,7 +28,7 @@ interface PropertiesPanelProps {
 }
 
 export function PropertiesPanel({ nodeId }: PropertiesPanelProps): JSX.Element | null {
-  const node = workflowStore(selectNodeById(nodeId));
+  const node = useWorkflowStore(selectNodeById(nodeId));
   // Reset local state when the selected node id changes by keying the
   // inner stateful component on it. Cleaner than the prop-into-state
   // useEffect dance flagged by react-hooks/set-state-in-effect.
@@ -40,6 +40,7 @@ function PropertiesPanelInner({ node }: { node: WorkflowNode }): JSX.Element {
   const [label, setLabel] = useState<string>(node.data.label);
   const labelInputRef = useRef<HTMLInputElement>(null);
   const nodeId = node.id;
+  const workflowStoreApi = useWorkflowStoreApi();
 
   // Move keyboard focus to the label input when the panel opens (i.e.
   // each time a different node is selected — the parent keys this
@@ -53,7 +54,7 @@ function PropertiesPanelInner({ node }: { node: WorkflowNode }): JSX.Element {
 
   const commitLabel = (): void => {
     if (label === node.data.label) return;
-    workflowStore.getState().updateNode(nodeId, {
+    workflowStoreApi.getState().updateNode(nodeId, {
       data: { label, variables: node.data.variables },
     });
   };

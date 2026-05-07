@@ -11,11 +11,15 @@
 import { type JSX, useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
-import { workflowStore } from '@/state/workflow/instance';
-import { selectNodeIds } from '@/state/workflow/selectors';
-import { useUiStore } from '@/state/ui/uiStore';
-import { usePointerDrag } from '@/utils/pointer';
+import {
+  useUiStore,
+  useUiStoreApi,
+  useWorkflowStore,
+  useWorkflowStoreApi,
+} from '@/state/StoresProvider';
 import type { ViewportOffset } from '@/state/ui/uiStore';
+import { selectNodeIds } from '@/state/workflow/selectors';
+import { usePointerDrag } from '@/utils/pointer';
 
 import { ConnectionLayer } from './ConnectionLayer';
 import { ErrorBanner } from './ErrorBanner';
@@ -32,7 +36,10 @@ export function Canvas(): JSX.Element {
   const setViewport = useUiStore((s) => s.setViewport);
   const selectNode = useUiStore((s) => s.selectNode);
   const selectEdge = useUiStore((s) => s.selectEdge);
-  const nodeIds = workflowStore(useShallow(selectNodeIds));
+  const nodeIds = useWorkflowStore(useShallow(selectNodeIds));
+
+  const workflowStoreApi = useWorkflowStoreApi();
+  const uiStoreApi = useUiStoreApi();
 
   // Window-level Delete listener for the currently selected edge. Edges
   // are not natively focusable in a way that survives panning; routing
@@ -42,17 +49,17 @@ export function Canvas(): JSX.Element {
       if (event.key !== 'Delete' && event.key !== 'Backspace') return;
       const active = document.activeElement;
       if (active && FORM_TAGS.has(active.tagName.toUpperCase())) return;
-      const { selectedEdgeId } = useUiStore.getState();
+      const { selectedEdgeId } = uiStoreApi.getState();
       if (selectedEdgeId === null) return;
       event.preventDefault();
-      workflowStore.getState().removeEdge(selectedEdgeId);
-      useUiStore.getState().selectEdge(null);
+      workflowStoreApi.getState().removeEdge(selectedEdgeId);
+      uiStoreApi.getState().selectEdge(null);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [uiStoreApi, workflowStoreApi]);
 
   // Pan handlers — usePointerDrag wires setPointerCapture and rAF
   // throttling. onDragStart returns null when the pointer down landed
@@ -64,7 +71,7 @@ export function Canvas(): JSX.Element {
         // Pointerdown on the empty canvas: clear any selection.
         selectNode(null);
         selectEdge(null);
-        return { initialViewport: useUiStore.getState().viewport };
+        return { initialViewport: uiStoreApi.getState().viewport };
       },
       onDrag: (_event, delta, startData) => {
         setViewport({
@@ -73,7 +80,7 @@ export function Canvas(): JSX.Element {
         });
       },
     }),
-    [selectEdge, selectNode, setViewport],
+    [selectEdge, selectNode, setViewport, uiStoreApi],
   );
   const pointerHandlers = usePointerDrag<PanStartData>(panHandlers);
 

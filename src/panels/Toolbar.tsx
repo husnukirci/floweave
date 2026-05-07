@@ -24,8 +24,7 @@ import {
 } from 'react';
 
 import { CUSTOM_NODE_REGISTRY } from '@/nodes/registry';
-import { workflowStore } from '@/state/workflow/instance';
-import { useUiStore } from '@/state/ui/uiStore';
+import { useUiStore, useUiStoreApi, useWorkflowStoreApi } from '@/state/StoresProvider';
 import type { CustomNodeType } from '@/state/workflow/types';
 
 type BasicKind = 'start' | 'task' | 'end';
@@ -41,15 +40,17 @@ const NODE_HALF_HEIGHT = 28;
 
 // World-coordinate position for a freshly added node — center of the
 // visible canvas with a small per-add cascade so multiple adds do not
-// stack.
-function defaultPosition(): { x: number; y: number } {
+// stack. Stores are passed in (rather than imported) because Toolbar
+// is mounted inside a per-instance StoresProvider.
+function defaultPosition(
+  viewport: { x: number; y: number },
+  nodeCount: number,
+): { x: number; y: number } {
   const root = document.querySelector('[role="application"]');
   const rect = root?.getBoundingClientRect();
-  const viewport = useUiStore.getState().viewport;
   const cx = rect ? rect.width / 2 : 400;
   const cy = rect ? rect.height / 2 : 300;
-  const count = Object.keys(workflowStore.getState().nodes).length;
-  const cascade = (count % 8) * 32;
+  const cascade = (nodeCount % 8) * 32;
   return {
     x: Math.round(cx - viewport.x - NODE_HALF_WIDTH + cascade),
     y: Math.round(cy - viewport.y - NODE_HALF_HEIGHT + cascade),
@@ -144,17 +145,26 @@ export function Toolbar(): JSX.Element {
     }
   };
 
+  const workflowStoreApi = useWorkflowStoreApi();
+  const uiStoreApi = useUiStoreApi();
+
+  const positionForNewNode = (): { x: number; y: number } => {
+    const viewport = uiStoreApi.getState().viewport;
+    const nodeCount = Object.keys(workflowStoreApi.getState().nodes).length;
+    return defaultPosition(viewport, nodeCount);
+  };
+
   const addBasic = (kind: BasicKind): void => {
-    workflowStore.getState().addNode({ kind, position: defaultPosition() });
+    workflowStoreApi.getState().addNode({ kind, position: positionForNewNode() });
     setAddOpen(false);
   };
 
   const addCustom = (customType: CustomNodeType): void => {
     const label = CUSTOM_NODE_REGISTRY[customType].label;
-    workflowStore.getState().addNode({
+    workflowStoreApi.getState().addNode({
       kind: 'custom',
       customType,
-      position: defaultPosition(),
+      position: positionForNewNode(),
       data: { label },
     });
     setAddOpen(false);
@@ -168,9 +178,9 @@ export function Toolbar(): JSX.Element {
     const file = event.target.files?.[0];
     if (!file) return;
     const text = await file.text();
-    const result = workflowStore.getState().importJSON(text);
+    const result = workflowStoreApi.getState().importJSON(text);
     if (!result.ok) {
-      useUiStore.getState().setNotification({
+      uiStoreApi.getState().setNotification({
         code: result.error.code,
         message: friendlyImportError(result.error.code),
       });
@@ -180,7 +190,7 @@ export function Toolbar(): JSX.Element {
   };
 
   const handleExport = (): void => {
-    const json = workflowStore.getState().exportJSON();
+    const json = workflowStoreApi.getState().exportJSON();
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -196,12 +206,12 @@ export function Toolbar(): JSX.Element {
     if (!window.confirm('Clear the workflow? All nodes and edges will be removed.')) {
       return;
     }
-    workflowStore.getState().clear();
+    workflowStoreApi.getState().clear();
   };
 
   const chatOpen = useUiStore((s) => s.panels.chat);
   const handleToggleChat = (): void => {
-    useUiStore.getState().togglePanel('chat');
+    uiStoreApi.getState().togglePanel('chat');
   };
 
   return (

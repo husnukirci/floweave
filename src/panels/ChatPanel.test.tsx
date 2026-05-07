@@ -1,39 +1,50 @@
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { ReactElement } from 'react';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { useChatStore } from '@/state/chat/chatStore';
-import { useUiStore } from '@/state/ui/uiStore';
+import { createChatStore, type ChatStore } from '@/state/chat/chatStore';
+import { createUiStore, type UiStore } from '@/state/ui/uiStore';
+import {
+  createTestWorkflowStore,
+  renderWithStores,
+  type TestWorkflowStore,
+} from '@/test/factories';
 import { server } from '@/test/server';
 
 import { ChatPanel } from './ChatPanel';
 
-const ENDPOINT = '/api/chat';
+const ENDPOINT = 'https://api.test.local/api/chat';
 
 describe('ChatPanel', () => {
-  beforeEach(() => {
-    useChatStore.getState().clearMessages();
-  });
+  let workflowStore: TestWorkflowStore;
+  let uiStore: UiStore;
+  let chatStore: ChatStore;
 
-  afterEach(() => {
-    useChatStore.getState().clearMessages();
+  const renderPanel = (ui: ReactElement = <ChatPanel />) =>
+    renderWithStores(ui, { stores: { workflowStore, uiStore, chatStore } });
+
+  beforeEach(() => {
+    workflowStore = createTestWorkflowStore();
+    uiStore = createUiStore();
+    chatStore = createChatStore({ workflowStore, uiStore, endpoint: ENDPOINT });
   });
 
   it('mounts as a labeled landmark region', () => {
-    render(<ChatPanel />);
+    renderPanel();
     expect(screen.getByRole('complementary', { name: /chat/i })).toBeInTheDocument();
   });
 
   it('renders a user message with the visible "you" affordance', () => {
-    useChatStore.getState().addMessage({
+    chatStore.getState().addMessage({
       id: 'm1',
       role: 'user',
       content: 'add a Verify Policy step',
       timestamp: Date.now(),
     });
 
-    render(<ChatPanel />);
+    renderPanel();
 
     expect(screen.getByText('add a Verify Policy step')).toBeInTheDocument();
     // User messages get a distinguishable affordance — either an avatar
@@ -42,20 +53,20 @@ describe('ChatPanel', () => {
   });
 
   it('renders an assistant message with its content', () => {
-    useChatStore.getState().addMessage({
+    chatStore.getState().addMessage({
       id: 'm1',
       role: 'assistant',
       content: 'Added the Verify Policy step.',
       timestamp: Date.now(),
     });
 
-    render(<ChatPanel />);
+    renderPanel();
 
     expect(screen.getByText('Added the Verify Policy step.')).toBeInTheDocument();
   });
 
   it('renders tool-call summaries with success markers under the assistant message', () => {
-    useChatStore.getState().addMessage({
+    chatStore.getState().addMessage({
       id: 'm1',
       role: 'assistant',
       content: 'Done.',
@@ -66,7 +77,7 @@ describe('ChatPanel', () => {
       ],
     });
 
-    render(<ChatPanel />);
+    renderPanel();
 
     // Each tool call surfaces its message; the result marker is a
     // distinguishable success indicator (text or icon).
@@ -75,7 +86,7 @@ describe('ChatPanel', () => {
   });
 
   it('marks failed tool-call summaries with an error indicator', () => {
-    useChatStore.getState().addMessage({
+    chatStore.getState().addMessage({
       id: 'm1',
       role: 'assistant',
       content: 'Tried.',
@@ -83,7 +94,7 @@ describe('ChatPanel', () => {
       toolCalls: [{ name: 'connect_nodes', result: 'err', message: 'duplicate-edge' }],
     });
 
-    render(<ChatPanel />);
+    renderPanel();
 
     expect(screen.getByText(/duplicate-edge/)).toBeInTheDocument();
     // The failed call carries a visible error state — checked via test
@@ -92,20 +103,20 @@ describe('ChatPanel', () => {
   });
 
   it('renders system error messages distinctly', () => {
-    useChatStore.getState().addMessage({
+    chatStore.getState().addMessage({
       id: 'sys1',
       role: 'system',
       content: 'The proxy is unreachable.',
       timestamp: Date.now(),
     });
 
-    render(<ChatPanel />);
+    renderPanel();
 
     expect(screen.getByRole('alert')).toHaveTextContent(/proxy is unreachable/);
   });
 
   it('shows an empty-state placeholder when no messages exist', () => {
-    render(<ChatPanel />);
+    renderPanel();
 
     expect(
       screen.getByText(/start a conversation|describe a workflow|ask the assistant/i),
@@ -113,7 +124,7 @@ describe('ChatPanel', () => {
   });
 
   it('exposes a textbox for the user input and a send button', () => {
-    render(<ChatPanel />);
+    renderPanel();
 
     expect(screen.getByRole('textbox', { name: /message|chat/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument();
@@ -130,7 +141,7 @@ describe('ChatPanel', () => {
       }),
     );
     const user = userEvent.setup();
-    render(<ChatPanel />);
+    renderPanel();
 
     await user.type(screen.getByRole('textbox', { name: /message|chat/i }), 'hello');
     await user.click(screen.getByRole('button', { name: /send/i }));
@@ -139,13 +150,13 @@ describe('ChatPanel', () => {
   });
 
   it('wraps the message list in an aria-live="polite" region so SRs announce new messages', () => {
-    useChatStore.getState().addMessage({
+    chatStore.getState().addMessage({
       id: 'm1',
       role: 'assistant',
       content: 'Hello.',
       timestamp: Date.now(),
     });
-    const { container } = render(<ChatPanel />);
+    const { container } = renderPanel();
 
     const live = container.querySelector('[aria-live="polite"]');
     expect(live).not.toBeNull();
@@ -153,26 +164,26 @@ describe('ChatPanel', () => {
   });
 
   it('exposes a Close chat button that closes the chat panel', async () => {
-    useUiStore.getState().setPanelOpen('chat', true);
+    uiStore.getState().setPanelOpen('chat', true);
     const user = userEvent.setup();
-    render(<ChatPanel />);
+    renderPanel();
 
     await user.click(screen.getByRole('button', { name: /close chat/i }));
 
-    expect(useUiStore.getState().panels.chat).toBe(false);
+    expect(uiStore.getState().panels.chat).toBe(false);
   });
 
   it('closes the panel when Escape is pressed', async () => {
-    useUiStore.getState().setPanelOpen('chat', true);
+    uiStore.getState().setPanelOpen('chat', true);
     const user = userEvent.setup();
-    render(<ChatPanel />);
+    renderPanel();
 
     // Focus the textbox first so the keyboard event lands inside the
     // panel (the Escape handler is mounted on the panel root).
     await user.click(screen.getByRole('textbox', { name: /message|chat/i }));
     await user.keyboard('{Escape}');
 
-    expect(useUiStore.getState().panels.chat).toBe(false);
+    expect(uiStore.getState().panels.chat).toBe(false);
   });
 
   it('exposes a cancel button only while a request is in flight', async () => {
@@ -186,7 +197,7 @@ describe('ChatPanel', () => {
       }),
     );
     const user = userEvent.setup();
-    render(<ChatPanel />);
+    renderPanel();
 
     expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
 

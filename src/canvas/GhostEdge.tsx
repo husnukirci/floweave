@@ -8,9 +8,8 @@
 import { type JSX } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
+import { useUiStore, useWorkflowStore } from '@/state/StoresProvider';
 import { selectNodeById } from '@/state/workflow/selectors';
-import { workflowStore } from '@/state/workflow/instance';
-import { useUiStore } from '@/state/ui/uiStore';
 import { bezierPath } from '@/utils/bezier';
 
 const NODE_WIDTH = 140;
@@ -30,7 +29,7 @@ export function GhostEdge(): JSX.Element | null {
   );
   // Read source position non-reactively; we only need it while connecting,
   // and the per-frame trigger is the cursor update above.
-  const sourceNode = workflowStore(
+  const sourceNode = useWorkflowStore(
     useShallow((state) => (fromNodeId ? selectNodeById(fromNodeId)(state) : null)),
   );
 

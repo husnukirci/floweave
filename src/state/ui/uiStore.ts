@@ -3,8 +3,8 @@
 // middleware (CLAUDE.md §4 architecture invariant): no immer, no
 // devtools, no temporal, no persist.
 //
-// Module-level singleton via useUiStore; tests instantiate a fresh
-// store per case via createUiStore() to keep cases isolated.
+// Per-instance via createUiStore(); each <workflow-editor> Custom
+// Element provides its own store through StoresProvider (ADR-019).
 
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
@@ -168,5 +168,3 @@ export function createUiStore(): UiStore {
     })),
   );
 }
-
-export const useUiStore = createUiStore();
