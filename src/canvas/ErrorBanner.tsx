@@ -41,8 +41,8 @@ export function ErrorBanner(): JSX.Element | null {
       data-testid="error-banner"
       className={
         isConnectingHint
-          ? 'pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-md bg-amber-100 px-4 py-2 text-sm text-amber-900 shadow-md ring-1 ring-amber-300'
-          : 'pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-md bg-rose-100 px-4 py-2 text-sm text-rose-900 shadow-md ring-1 ring-rose-300'
+          ? 'pointer-events-none absolute left-1/2 top-4 [transform:translateX(-50%)] rounded-md bg-amber-100 px-4 py-2 text-sm text-amber-900 shadow-md ring-1 ring-amber-300'
+          : 'pointer-events-none absolute left-1/2 top-4 [transform:translateX(-50%)] rounded-md bg-rose-100 px-4 py-2 text-sm text-rose-900 shadow-md ring-1 ring-rose-300'
       }
     >
       {notification.message}

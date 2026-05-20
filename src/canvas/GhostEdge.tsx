@@ -12,8 +12,7 @@ import { useUiStore, useWorkflowStore } from '@/state/StoresProvider';
 import { selectNodeById } from '@/state/workflow/selectors';
 import { bezierPath } from '@/utils/bezier';
 
-const NODE_WIDTH = 140;
-const NODE_HEIGHT = 56;
+import { NODE_HEIGHT, NODE_WIDTH } from './nodeMetrics';
 
 function anchorRight(p: { x: number; y: number }): { x: number; y: number } {
   return { x: p.x + NODE_WIDTH, y: p.y + NODE_HEIGHT / 2 };
