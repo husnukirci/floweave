@@ -333,4 +333,92 @@ describe('WorkflowEditorElement', () => {
       expect(b.getWorkflow().nodes.alpha).toBeUndefined();
     });
   });
+
+  describe('shadow-boundary event handling', () => {
+    let el: WorkflowEditorElement;
+
+    async function waitForTestId(testId: string, timeoutMs = 1000): Promise<Element> {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const node = el.shadowRoot?.querySelector(`[data-testid="${testId}"]`);
+        if (node) return node;
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      throw new Error(`[data-testid="${testId}"] never appeared in the shadow root`);
+    }
+
+    beforeEach(() => {
+      el = document.createElement('workflow-editor') as WorkflowEditorElement;
+      document.body.appendChild(el);
+    });
+
+    afterEach(() => {
+      el.remove();
+    });
+
+    it('Toolbar Add menu items work despite event retargeting (regression: empty menu click)', async () => {
+      // Before the composedPath fix, the document-level mousedown
+      // handler saw event.target as the shadow host and treated every
+      // menuitem click as "outside" — closing the menu before the
+      // item's click handler fired.
+      const addBtn = (await waitForTestId('toolbar-add-button')) as HTMLButtonElement;
+      addBtn.click();
+      const startBtn = (await waitForTestId('toolbar-add-start')) as HTMLButtonElement;
+
+      const before = Object.keys(el.getWorkflow().nodes).length;
+      startBtn.click();
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(Object.keys(el.getWorkflow().nodes).length).toBe(before + 1);
+    });
+
+    it('Canvas Delete handler skips form input focus despite activeElement retargeting', () => {
+      // Before the getDeepActiveElement fix, document.activeElement
+      // returned the shadow host (not the actual focused INPUT inside),
+      // so the FORM_TAGS skip never triggered and Delete in a label
+      // input would delete the selected edge.
+      el.addNode({ kind: 'task', position: { x: 0, y: 0 } });
+      el.addNode({ kind: 'task', position: { x: 100, y: 0 } });
+      const ids = Object.keys(el.getWorkflow().nodes);
+      const [a, b] = ids as [string, string];
+
+      // Programmatically wire an edge so we have something to delete.
+      const wfStore = (
+        el as unknown as {
+          stores: {
+            workflowStore: { getState: () => { connectNodes: (i: unknown) => { ok: boolean } } };
+          } | null;
+        }
+      ).stores?.workflowStore;
+      wfStore?.getState().connectNodes({ source: a, target: b });
+      expect(Object.keys(el.getWorkflow().edges).length).toBe(1);
+
+      // Select the edge via the ui store so Canvas's Delete handler
+      // has a target.
+      const uiStore = (
+        el as unknown as {
+          stores: { uiStore: { getState: () => { selectEdge: (id: string) => void } } } | null;
+        }
+      ).stores?.uiStore;
+      const edgeId = Object.keys(el.getWorkflow().edges)[0];
+      if (!edgeId) throw new Error('expected at least one edge after setup');
+      uiStore?.getState().selectEdge(edgeId);
+
+      // Mount a synthetic INPUT inside the shadow root and focus it.
+      const input = document.createElement('input');
+      input.type = 'text';
+      el.shadowRoot?.appendChild(input);
+      input.focus();
+
+      // Fire Delete on window. With the fix, getDeepActiveElement
+      // resolves to the INPUT inside the shadow and the handler skips;
+      // without the fix, document.activeElement is <workflow-editor>
+      // (not a FORM_TAG) and the edge would be deleted.
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }));
+
+      expect(Object.keys(el.getWorkflow().edges).length).toBe(1);
+
+      input.remove();
+    });
+  });
 });

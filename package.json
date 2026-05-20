@@ -1,7 +1,7 @@
 {
   "name": "floweave",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Embeddable Web Component for building BPMN-style workflows visually or by chatting with an AI assistant.",
   "license": "MIT",

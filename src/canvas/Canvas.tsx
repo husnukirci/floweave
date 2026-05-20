@@ -20,6 +20,7 @@ import {
 import type { ViewportOffset } from '@/state/ui/uiStore';
 import { selectNodeIds } from '@/state/workflow/selectors';
 import { usePointerDrag } from '@/utils/pointer';
+import { getDeepActiveElement } from '@/utils/shadow';
 
 import { ConnectionLayer } from './ConnectionLayer';
 import { ErrorBanner } from './ErrorBanner';
@@ -47,7 +48,11 @@ export function Canvas(): JSX.Element {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Delete' && event.key !== 'Backspace') return;
-      const active = document.activeElement;
+      // document.activeElement returns the shadow host when focus is
+      // inside the editor's Shadow DOM — getDeepActiveElement walks
+      // through shadowRoot.activeElement to find the real one so we
+      // correctly skip Delete when the user is typing in an input.
+      const active = getDeepActiveElement();
       if (active && FORM_TAGS.has(active.tagName.toUpperCase())) return;
       const { selectedEdgeId } = uiStoreApi.getState();
       if (selectedEdgeId === null) return;
