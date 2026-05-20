@@ -206,4 +206,27 @@ describe('ChatPanel', () => {
 
     expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
   });
+
+  it('shows a typing indicator while the request is in flight', async () => {
+    server.use(
+      http.post(ENDPOINT, async () => {
+        await new Promise((r) => setTimeout(r, 50));
+        return HttpResponse.json({
+          content: [{ type: 'text', text: 'ok' }],
+          stop_reason: 'end_turn',
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPanel();
+
+    expect(screen.queryByTestId('chat-typing')).not.toBeInTheDocument();
+
+    await user.type(screen.getByRole('textbox', { name: /message|chat/i }), 'hello');
+    await user.click(screen.getByRole('button', { name: /send/i }));
+
+    const indicator = screen.getByTestId('chat-typing');
+    expect(indicator).toBeInTheDocument();
+    expect(indicator).toHaveTextContent(/thinking/i);
+  });
 });
