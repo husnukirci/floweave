@@ -11,7 +11,7 @@ export function App(): JSX.Element {
   const chatOpen = useUiStore((s) => s.panels.chat);
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-white text-neutral-900 antialiased">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-white text-neutral-900 antialiased">
       <Toolbar />
       <div className="flex min-h-0 flex-1">
         <div className="relative flex-1 overflow-hidden">

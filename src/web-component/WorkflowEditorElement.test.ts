@@ -372,6 +372,32 @@ describe('WorkflowEditorElement', () => {
       expect(Object.keys(el.getWorkflow().nodes).length).toBe(before + 1);
     });
 
+    it('App root fills the host element, not the viewport (regression: w-screen spill)', async () => {
+      // The App's outer div used to have `w-screen h-screen`, which
+      // resolves to 100vw/100vh — full viewport — regardless of how
+      // wide the WC element actually is. When a host page constrained
+      // the WC (e.g. demo.html's grid column), the React tree overflowed
+      // the shadow host's right edge and any LIGHT-DOM element next to
+      // the WC visually covered the spillover (PropertiesPanel +
+      // ChatPanel were rendered but hidden behind the demo sidebar).
+      // Switching to `w-full h-full` ties the App to its parent
+      // (the mountPoint inside the shadow root) instead.
+      el.style.width = '500px';
+      el.style.height = '400px';
+      el.style.display = 'block';
+      // Wait for React's first commit so the App root exists.
+      await new Promise((r) => setTimeout(r, 30));
+      const shadow = el.shadowRoot;
+      if (!shadow) throw new Error('expected shadowRoot');
+      const mount = shadow.firstElementChild;
+      const appRoot = mount?.firstElementChild as HTMLElement | null;
+      if (!appRoot) throw new Error('expected React app root');
+      const elRect = el.getBoundingClientRect();
+      const appRect = appRoot.getBoundingClientRect();
+      expect(appRect.width).toBeLessThanOrEqual(elRect.width);
+      expect(appRect.height).toBeLessThanOrEqual(elRect.height);
+    });
+
     it('Canvas Delete handler skips form input focus despite activeElement retargeting', () => {
       // Before the getDeepActiveElement fix, document.activeElement
       // returned the shadow host (not the actual focused INPUT inside),
