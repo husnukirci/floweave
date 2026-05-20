@@ -36,12 +36,13 @@ const BASIC_KINDS: readonly { kind: BasicKind; label: string }[] = [
   { kind: 'end', label: 'End' },
 ];
 
-// Mirrors the border-400 tones used by Node.tsx for each basic kind so
-// the menu chips read as the same swatch the rendered node will use.
+// Mirrors the exact two-tone palette each Node renders with: a pale
+// bg-{kind}-50 fill ringed by a saturated border-{kind}-400 line. Each
+// chip reads as a miniature of the node it will create.
 const BASIC_KIND_DOT_CLASS: Record<BasicKind, string> = {
-  start: 'bg-emerald-400',
-  task: 'bg-blue-400',
-  end: 'bg-rose-400',
+  start: 'bg-emerald-50 border-emerald-400',
+  task: 'bg-blue-50 border-blue-400',
+  end: 'bg-rose-50 border-rose-400',
 };
 
 const NODE_HALF_WIDTH = 70;
@@ -361,7 +362,10 @@ function AddMenu({ onAddBasic, onAddCustom, onKeyDown, itemRefs }: AddMenuProps)
             }}
           >
             <span
-              className={clsx('inline-block h-3 w-3 rounded-full', BASIC_KIND_DOT_CLASS[kind])}
+              className={clsx(
+                'inline-block h-3 w-3 rounded-full border-2',
+                BASIC_KIND_DOT_CLASS[kind],
+              )}
               aria-hidden
             />
             {label}
