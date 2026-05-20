@@ -37,3 +37,7 @@ yarn-error.log*
 .playwright-mcp/
 phase-*.png
 scenario-*.png
+ghost-edge-*.png
+edge-*.png
+handles-*.png
+chat-*.png
