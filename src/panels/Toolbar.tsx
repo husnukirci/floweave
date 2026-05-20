@@ -65,11 +65,17 @@ export function Toolbar(): JSX.Element {
   const menuItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   // Outside-click dismissal — only attached while the menu is open.
+  // event.target on document is retargeted to the shadow host when the
+  // event originates inside Shadow DOM (i.e. inside <workflow-editor>),
+  // so `container.contains(event.target)` would always be false from
+  // inside the shadow tree and the menu would close on its own
+  // menuitems. Use composedPath() instead — it pierces shadow roots.
   useEffect(() => {
     if (!addOpen) return undefined;
     const handler = (event: MouseEvent): void => {
       const container = menuContainerRef.current;
-      if (container && !container.contains(event.target as Node)) {
+      if (!container) return;
+      if (!event.composedPath().includes(container)) {
         setAddOpen(false);
       }
     };
