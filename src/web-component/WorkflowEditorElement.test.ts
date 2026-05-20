@@ -398,6 +398,45 @@ describe('WorkflowEditorElement', () => {
       expect(appRect.height).toBeLessThanOrEqual(elRect.height);
     });
 
+    it('clicking empty canvas deselects the node (regression: canvas-content overlay blocked the guard)', async () => {
+      // The Canvas's onDragStart used to guard with
+      // `event.target !== event.currentTarget`. The .canvas-content
+      // layer sits absolutely on top of the outer Canvas div and
+      // absorbs every pointer target, so the guard always returned
+      // early and the deselect never fired. Switched to walking
+      // event.composedPath() for a node/handle/edge marker.
+      const id = el.addNode({ kind: 'task', position: { x: 50, y: 50 } });
+      const uiStore = (
+        el as unknown as {
+          stores: {
+            uiStore: {
+              getState: () => {
+                selectNode: (id: string | null) => void;
+                selectedNodeId: string | null;
+              };
+            };
+          } | null;
+        }
+      ).stores?.uiStore;
+      uiStore?.getState().selectNode(id);
+      expect(uiStore?.getState().selectedNodeId).toBe(id);
+
+      // Wait for the React app to render, then click the
+      // canvas-content layer at coordinates that don't hit the node.
+      const canvasContent = await waitForTestId('canvas-content');
+      const evt = new PointerEvent('pointerdown', {
+        bubbles: true,
+        clientX: 9999, // far away from the node at (50,50)
+        clientY: 9999,
+        pointerId: 1,
+        button: 0,
+      });
+      canvasContent.dispatchEvent(evt);
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(uiStore?.getState().selectedNodeId).toBeNull();
+    });
+
     it('Canvas Delete handler skips form input focus despite activeElement retargeting', () => {
       // Before the getDeepActiveElement fix, document.activeElement
       // returned the shadow host (not the actual focused INPUT inside),
