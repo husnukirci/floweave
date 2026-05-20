@@ -36,14 +36,13 @@ const BASIC_KINDS: readonly { kind: BasicKind; label: string }[] = [
   { kind: 'end', label: 'End' },
 ];
 
-// Pale {kind}-50 fill matches the node's body; {kind}-900 border matches
-// the connection-handle dot on the rendered node (Handle paints with
-// bg-current, inheriting the node's text-{kind}-900). So the chip reads
-// as both the node card and the dots that will attach to it.
+// Solid {kind}-900 fill — the same colour Handle paints its connection
+// dot with (bg-current inheriting text-{kind}-900). The chip is a 1:1
+// match for the dot that will appear on the rendered node.
 const BASIC_KIND_DOT_CLASS: Record<BasicKind, string> = {
-  start: 'bg-emerald-50 border-emerald-900',
-  task: 'bg-blue-50 border-blue-900',
-  end: 'bg-rose-50 border-rose-900',
+  start: 'bg-emerald-900',
+  task: 'bg-blue-900',
+  end: 'bg-rose-900',
 };
 
 const NODE_HALF_WIDTH = 70;
@@ -363,10 +362,7 @@ function AddMenu({ onAddBasic, onAddCustom, onKeyDown, itemRefs }: AddMenuProps)
             }}
           >
             <span
-              className={clsx(
-                'inline-block h-3 w-3 rounded-full border-2',
-                BASIC_KIND_DOT_CLASS[kind],
-              )}
+              className={clsx('inline-block h-3 w-3 rounded-full', BASIC_KIND_DOT_CLASS[kind])}
               aria-hidden
             />
             {label}
