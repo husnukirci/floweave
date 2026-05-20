@@ -18,6 +18,7 @@ import { useChatStore, useUiStoreApi } from '@/state/StoresProvider';
 
 export function ChatPanel(): JSX.Element {
   const messages = useChatStore(useShallow((s) => s.messages));
+  const status = useChatStore((s) => s.status);
   const uiStoreApi = useUiStoreApi();
   const asideRef = useRef<HTMLElement>(null);
 
@@ -80,9 +81,34 @@ export function ChatPanel(): JSX.Element {
             ))}
           </ul>
         )}
+        {status === 'pending' ? <TypingIndicator /> : null}
       </div>
       <ChatInput />
     </aside>
+  );
+}
+
+// Animated "assistant is generating" indicator. Three pulsing dots
+// give visible feedback while the agent loop runs — without it, AI-
+// added nodes pop into the canvas with no preceding cue.
+//
+// Lives inside the messages live region, so screen readers announce
+// the sr-only "Assistant is thinking…" text when status flips to
+// pending. The dots themselves are aria-hidden so AT users get one
+// phrase, not a triple-dot string.
+function TypingIndicator(): JSX.Element {
+  return (
+    <div data-testid="chat-typing" className="mt-3 flex flex-col items-start gap-1">
+      <span className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+        Assistant
+      </span>
+      <span className="sr-only">Assistant is thinking…</span>
+      <span aria-hidden="true" className="flex items-center gap-1 rounded bg-neutral-100 px-3 py-2">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400 [animation-delay:150ms]" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400 [animation-delay:300ms]" />
+      </span>
+    </div>
   );
 }
 

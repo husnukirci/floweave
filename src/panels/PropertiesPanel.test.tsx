@@ -119,4 +119,52 @@ describe('PropertiesPanel', () => {
 
     expect(workflowStore.getState().nodes[result.value.id]?.data.label).toBe('Submitted');
   });
+
+  describe('close UX', () => {
+    it('renders a Close properties button with the correct aria-label', () => {
+      const result = workflowStore.getState().addNode({
+        kind: 'task',
+        position: { x: 0, y: 0 },
+      });
+      if (!result.ok) throw new Error('setup');
+      uiStore.setState({ selectedNodeId: result.value.id });
+
+      const { getByTestId } = renderPanel(<PropertiesPanel nodeId={result.value.id} />);
+      const closeBtn = getByTestId('properties-close');
+
+      expect(closeBtn).toHaveAttribute('aria-label', 'Close properties');
+    });
+
+    it('clicking the close button deselects the node', () => {
+      const result = workflowStore.getState().addNode({
+        kind: 'task',
+        position: { x: 0, y: 0 },
+      });
+      if (!result.ok) throw new Error('setup');
+      uiStore.setState({ selectedNodeId: result.value.id });
+
+      const { getByTestId } = renderPanel(<PropertiesPanel nodeId={result.value.id} />);
+      fireEvent.click(getByTestId('properties-close'));
+
+      expect(uiStore.getState().selectedNodeId).toBeNull();
+    });
+
+    it('Escape inside the panel deselects the node', () => {
+      const result = workflowStore.getState().addNode({
+        kind: 'task',
+        position: { x: 0, y: 0 },
+      });
+      if (!result.ok) throw new Error('setup');
+      uiStore.setState({ selectedNodeId: result.value.id });
+
+      const { getByTestId } = renderPanel(<PropertiesPanel nodeId={result.value.id} />);
+      const panel = getByTestId('properties-panel');
+      // Fire a real KeyboardEvent on the DOM so the panel's
+      // addEventListener handler catches it (React's synthetic events
+      // wouldn't reach a native addEventListener).
+      panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+      expect(uiStore.getState().selectedNodeId).toBeNull();
+    });
+  });
 });

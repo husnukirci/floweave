@@ -68,11 +68,24 @@ export function Canvas(): JSX.Element {
 
   // Pan handlers — usePointerDrag wires setPointerCapture and rAF
   // throttling. onDragStart returns null when the pointer down landed
-  // on a child (a Node) so node drags don't also trigger a pan.
+  // on a Node or Handle so node drags / handle drags don't also
+  // trigger a pan. Walking event.composedPath() is required because
+  // the .canvas-content layer sits absolutely on top of the outer
+  // Canvas div and absorbs the pointer target, so a naive
+  // `event.target !== event.currentTarget` check would never see
+  // an "empty canvas" click.
   const panHandlers = useMemo<Parameters<typeof usePointerDrag<PanStartData>>[0]>(
     () => ({
       onDragStart: (event) => {
-        if (event.target !== event.currentTarget) return null;
+        const path = event.nativeEvent.composedPath();
+        const hitInteractive = path.some(
+          (el) =>
+            el instanceof Element &&
+            (el.hasAttribute('data-kind') || // a Node button
+              el.hasAttribute('data-handle-type') || // a connection Handle
+              el.getAttribute('data-testid')?.startsWith('edge-')), // a clickable Edge
+        );
+        if (hitInteractive) return null;
         // Pointerdown on the empty canvas: clear any selection.
         selectNode(null);
         selectEdge(null);

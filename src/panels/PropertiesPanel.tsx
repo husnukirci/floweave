@@ -7,6 +7,7 @@
 // local state on every keystroke; blur (or Enter) commits via updateNode.
 // Avoids per-keystroke store updates that would re-render the whole canvas.
 
+import { X } from 'lucide-react';
 import {
   type ChangeEvent,
   type JSX,
@@ -17,7 +18,7 @@ import {
 } from 'react';
 
 import { CUSTOM_NODE_REGISTRY } from '@/nodes/registry';
-import { useWorkflowStore, useWorkflowStoreApi } from '@/state/StoresProvider';
+import { useUiStoreApi, useWorkflowStore, useWorkflowStoreApi } from '@/state/StoresProvider';
 import { selectNodeById } from '@/state/workflow/selectors';
 import type { WorkflowNode } from '@/state/workflow/types';
 
@@ -39,8 +40,14 @@ export function PropertiesPanel({ nodeId }: PropertiesPanelProps): JSX.Element |
 function PropertiesPanelInner({ node }: { node: WorkflowNode }): JSX.Element {
   const [label, setLabel] = useState<string>(node.data.label);
   const labelInputRef = useRef<HTMLInputElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
   const nodeId = node.id;
   const workflowStoreApi = useWorkflowStoreApi();
+  const uiStoreApi = useUiStoreApi();
+
+  const closePanel = (): void => {
+    uiStoreApi.getState().selectNode(null);
+  };
 
   // Move keyboard focus to the label input when the panel opens (i.e.
   // each time a different node is selected — the parent keys this
@@ -51,6 +58,26 @@ function PropertiesPanelInner({ node }: { node: WorkflowNode }): JSX.Element {
     input.focus();
     input.select();
   }, []);
+
+  // Escape closes the panel from anywhere inside it. The label
+  // input has its own Escape handler that discards the in-progress
+  // edit; we only close when the input isn't capturing the keystroke.
+  useEffect(() => {
+    const node = asideRef.current;
+    if (!node) return;
+    const handle = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      // Label input's own keydown runs first via the React tree;
+      // if the user is mid-edit, that one prevents default. Check
+      // here so we don't double-fire.
+      if (event.defaultPrevented) return;
+      uiStoreApi.getState().selectNode(null);
+    };
+    node.addEventListener('keydown', handle);
+    return () => {
+      node.removeEventListener('keydown', handle);
+    };
+  }, [uiStoreApi]);
 
   const commitLabel = (): void => {
     if (label === node.data.label) return;
@@ -79,10 +106,25 @@ function PropertiesPanelInner({ node }: { node: WorkflowNode }): JSX.Element {
 
   return (
     <aside
+      ref={asideRef}
       aria-label="Node properties"
       data-testid="properties-panel"
       className="flex w-80 flex-col gap-4 overflow-y-auto border-l border-neutral-200 bg-white p-4 text-sm"
     >
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+          Properties
+        </div>
+        <button
+          type="button"
+          onClick={closePanel}
+          aria-label="Close properties"
+          data-testid="properties-close"
+          className="rounded p-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
       <section>
         <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
           Node Type

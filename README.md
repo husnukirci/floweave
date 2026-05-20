@@ -132,10 +132,11 @@ src/
 
 server/               # Hono proxy: app, proxy entry, chat handler, logger, types
 docs/
-├── api.md            # <workflow-editor> public API reference (ADR-018)
-├── decisions.md      # 23 ADRs (Michael Nygard format)
-├── ai-workflow.md    # how Claude was used to build this
-└── ai-prompts.md     # full system prompt, tool schemas, sanitized transcripts
+├── api.md                  # <workflow-editor> public API reference (ADR-018)
+├── decisions.md            # 23 ADRs (Michael Nygard format)
+├── shadow-dom-gotchas.md   # field guide for the retargeting traps the WC mount hits
+├── ai-workflow.md          # how Claude was used to build this
+└── ai-prompts.md           # full system prompt, tool schemas, sanitized transcripts
 
 demo.html             # static demo page consuming dist-wc/workflow-editor.js
 Dockerfile            # multi-stage build for the production image

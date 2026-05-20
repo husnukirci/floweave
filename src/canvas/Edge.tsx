@@ -17,12 +17,11 @@ import { useUiStore, useWorkflowStore } from '@/state/StoresProvider';
 import { selectEdgeEndpoints } from '@/state/workflow/selectors';
 import { bezierPath } from '@/utils/bezier';
 
+import { NODE_HEIGHT, NODE_WIDTH } from './nodeMetrics';
+
 interface EdgeProps {
   id: string;
 }
-
-const NODE_WIDTH = 140;
-const NODE_HEIGHT = 56;
 
 function anchorRight(p: { x: number; y: number }): { x: number; y: number } {
   return { x: p.x + NODE_WIDTH, y: p.y + NODE_HEIGHT / 2 };

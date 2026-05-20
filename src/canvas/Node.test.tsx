@@ -74,6 +74,20 @@ describe('Node', () => {
     expect(uiStore.getState().selectedNodeId).toBe(result.value.id);
   });
 
+  it('does not select on pointerdown alone (selection waits for the click)', () => {
+    const result = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
+    if (!result.ok) throw new Error('setup');
+
+    const { getByTestId } = renderNode(<Node id={result.value.id} />);
+    fireEvent.pointerDown(getByTestId(`node-${result.value.id}`), {
+      pointerId: 1,
+      clientX: 0,
+      clientY: 0,
+    });
+
+    expect(uiStore.getState().selectedNodeId).toBeNull();
+  });
+
   it('reflects selection state via data-selected', () => {
     const result = workflowStore.getState().addNode({ kind: 'task', position: { x: 0, y: 0 } });
     if (!result.ok) throw new Error('setup');

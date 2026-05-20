@@ -7,7 +7,15 @@
 // variants with Lucide icons land in commit 6.
 
 import clsx from 'clsx';
-import { type JSX, type KeyboardEvent, type MouseEvent, memo, useCallback, useMemo } from 'react';
+import {
+  type JSX,
+  type KeyboardEvent,
+  type MouseEvent,
+  memo,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 
 import { CUSTOM_NODE_REGISTRY, type CustomNodeSpec } from '@/nodes/registry';
 import {
@@ -46,9 +54,19 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
   // nodes whose flag didn't actually flip.
   const isRecentlyAdded = useUiStore((s) => s.recentlyAddedNodeIds.has(id));
 
+  // Tracks whether the most recent pointerdown turned into a real drag
+  // (movement beyond the threshold). The button still fires a click
+  // after a drag-with-pointer-capture, so handleClick consults this
+  // flag to skip selection when the user was actually moving the node.
+  const dragMovedRef = useRef(false);
+
   const handleClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation();
+      if (dragMovedRef.current) {
+        dragMovedRef.current = false;
+        return;
+      }
       selectNode(id);
     },
     [id, selectNode],
@@ -132,24 +150,31 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
   // Drag handler set — usePointerDrag wires setPointerCapture and rAF
   // throttling. Each frame, onDrag updates the node position via
   // moveNode; React re-renders only this Node thanks to the per-id
-  // subscription. Drag also implicitly selects (selectNode in onDragStart).
+  // subscription. Selection deliberately stays out of onDragStart so
+  // a click-to-move gesture doesn't open the properties panel — the
+  // click handler picks up taps (no meaningful movement) instead.
   const dragHandlers = useMemo<Parameters<typeof usePointerDrag<DragStartData>>[0]>(
     () => ({
       onDragStart: (event) => {
         const current = workflowStoreApi.getState().nodes[id];
         if (!current) return null;
         event.stopPropagation();
-        selectNode(id);
+        dragMovedRef.current = false;
         return { initialPosition: current.position };
       },
       onDrag: (_event, delta, startData) => {
+        // 3px squared = 9. Anything past that counts as a drag and
+        // suppresses the trailing click's selection.
+        if (delta.totalDx * delta.totalDx + delta.totalDy * delta.totalDy > 9) {
+          dragMovedRef.current = true;
+        }
         workflowStoreApi.getState().moveNode(id, {
           x: startData.initialPosition.x + delta.totalDx,
           y: startData.initialPosition.y + delta.totalDy,
         });
       },
     }),
-    [id, selectNode, workflowStoreApi],
+    [id, workflowStoreApi],
   );
   const pointerHandlers = usePointerDrag<DragStartData>(dragHandlers);
 
@@ -176,10 +201,20 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
       onPointerUp={pointerHandlers.onPointerUp}
       onPointerCancel={pointerHandlers.onPointerCancel}
       className={clsx(
-        'absolute flex min-w-[140px] flex-col items-center justify-center',
+        // Node dimensions are locked here to match NODE_WIDTH/HEIGHT in
+        // nodeMetrics.ts — Edge and GhostEdge use those constants to
+        // place connection endpoints on the visible handle dots, and
+        // any drift between the rendered size and the constants makes
+        // edges miss the dots.
+        'absolute flex w-[160px] h-[60px] flex-col items-center justify-center',
         'rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
         'cursor-pointer hover:shadow-md',
+        // No `overflow-hidden` on the node itself — it would clip the
+        // connection handles, which intentionally sit -10px past the
+        // node's edges, and would also strip their pointer-event area.
+        // Long labels are truncated by `truncate` on the inner spans
+        // instead so the node box stays inert from hit-testing changes.
         node.kind === 'start' && 'border-emerald-400 bg-emerald-50 text-emerald-900',
         node.kind === 'end' && 'border-rose-400 bg-rose-50 text-rose-900',
         node.kind === 'task' && 'border-blue-400 bg-blue-50 text-blue-900',
@@ -194,13 +229,13 @@ function NodeComponent({ id }: NodeProps): JSX.Element | null {
         top: `${String(node.position.y)}px`,
       }}
     >
-      <span className="flex items-center gap-1 text-xs uppercase tracking-wide opacity-70">
+      <span className="flex max-w-full items-center gap-1 truncate text-xs uppercase tracking-wide opacity-70">
         {customSpec ? (
-          <customSpec.icon aria-hidden className={clsx('h-3 w-3', customSpec.iconClass)} />
+          <customSpec.icon aria-hidden className={clsx('h-3 w-3 shrink-0', customSpec.iconClass)} />
         ) : null}
-        {kindLabel}
+        <span className="truncate">{kindLabel}</span>
       </span>
-      <span className="text-sm font-medium">{node.data.label}</span>
+      <span className="max-w-full truncate text-sm font-medium">{node.data.label}</span>
       {/* Connection handles. Start nodes only emit (output); end nodes
           only receive (input); task and custom nodes have both. */}
       {node.kind !== 'start' ? <Handle nodeId={id} type="input" /> : null}
