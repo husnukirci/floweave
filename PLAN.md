@@ -69,31 +69,31 @@ This document is the source of truth for what we're building, in what order, and
 
 ## 3. Locked decisions (full reasoning in docs/decisions.md)
 
-| # | Decision | Choice |
-|---|---|---|
-| 001 | Web Component interpretation | Native Custom Element wrapping React |
-| 002 | Store data structure | Records keyed by ID |
-| 003 | State architecture | 3 stores (workflow / ui / chat) with slice pattern |
-| 004 | Canvas rendering | HTML + SVG hybrid |
-| 005 | Connection interaction | Drag-to-connect with pointer capture |
-| 006 | Viewport | Pan only (no zoom in v1) |
-| 007 | Style isolation | Shadow DOM with constructable stylesheets |
-| 008 | LLM API key handling | Server-side proxy only |
-| 009 | LLM tool schema | Atomic tools (1:1 with store actions) |
-| 010 | Agent loop | Non-streaming, 5-iteration cap, batched mutations |
-| 011 | React Query | Declined for v1 |
-| 012 | Zustand middleware | immer + devtools + persist + temporal + subscribeWithSelector |
-| 013 | Testing strategy | Tiered TDD: vitest + RTL + MSW + Playwright |
-| 014 | Self-review | Structured rubric per phase, adversarial review on critical phases |
-| 015 | Visual design | Lightweight tokens, Tailwind, no UI lib |
-| 016 | Accessibility | WCAG 2.2 AA target |
-| 017 | Error handling | Result types in store + ErrorBoundary + toast system |
-| 018 | WC public API | Attributes + properties + CustomEvents, fully documented |
-| 019 | Multi-instance | Supported via store factory pattern (Tier 1) |
-| 020 | Packaging | Vite library mode, single JS bundle |
-| 021 | Security | XSS via React defaults, JSON validation, prompt injection mitigation |
-| 022 | Performance budget | 200KB gzipped, ≤500ms TTI, 60fps drag@50 nodes |
-| 023 | Responsive design | Container queries, three breakpoints, ≥600px supported |
+| #   | Decision                     | Choice                                                               |
+| --- | ---------------------------- | -------------------------------------------------------------------- |
+| 001 | Web Component interpretation | Native Custom Element wrapping React                                 |
+| 002 | Store data structure         | Records keyed by ID                                                  |
+| 003 | State architecture           | 3 stores (workflow / ui / chat) with slice pattern                   |
+| 004 | Canvas rendering             | HTML + SVG hybrid                                                    |
+| 005 | Connection interaction       | Drag-to-connect with pointer capture                                 |
+| 006 | Viewport                     | Pan only (no zoom in v1)                                             |
+| 007 | Style isolation              | Shadow DOM with constructable stylesheets                            |
+| 008 | LLM API key handling         | Server-side proxy only                                               |
+| 009 | LLM tool schema              | Atomic tools (1:1 with store actions)                                |
+| 010 | Agent loop                   | Non-streaming, 5-iteration cap, batched mutations                    |
+| 011 | React Query                  | Declined for v1                                                      |
+| 012 | Zustand middleware           | immer + devtools + persist + temporal + subscribeWithSelector        |
+| 013 | Testing strategy             | Tiered TDD: vitest + RTL + MSW + Playwright                          |
+| 014 | Self-review                  | Structured rubric per phase, adversarial review on critical phases   |
+| 015 | Visual design                | Lightweight tokens, Tailwind, no UI lib                              |
+| 016 | Accessibility                | WCAG 2.2 AA target                                                   |
+| 017 | Error handling               | Result types in store + ErrorBoundary + toast system                 |
+| 018 | WC public API                | Attributes + properties + CustomEvents, fully documented             |
+| 019 | Multi-instance               | Supported via store factory pattern (Tier 1)                         |
+| 020 | Packaging                    | Vite library mode, single JS bundle                                  |
+| 021 | Security                     | XSS via React defaults, JSON validation, prompt injection mitigation |
+| 022 | Performance budget           | 200KB gzipped, ≤500ms TTI, 60fps drag@50 nodes                       |
+| 023 | Responsive design            | Container queries, three breakpoints, ≥600px supported               |
 
 Twenty-three locked decisions. Each has an ADR in `docs/decisions.md`.
 
@@ -105,9 +105,15 @@ Twenty-three locked decisions. Each has an ADR in `docs/decisions.md`.
 type NodeKind = 'start' | 'end' | 'task' | 'custom';
 
 type CustomNodeType =
-  | 'createAccount' | 'createPolicy' | 'createDocument' | 'sendEmail'
-  | 'verifyPolicy' | 'assessDamage' | 'calculatePayout'
-  | 'approveClaim' | 'denyClaim';
+  | 'createAccount'
+  | 'createPolicy'
+  | 'createDocument'
+  | 'sendEmail'
+  | 'verifyPolicy'
+  | 'assessDamage'
+  | 'calculatePayout'
+  | 'approveClaim'
+  | 'denyClaim';
 
 interface WorkflowNode {
   id: string;
@@ -133,6 +139,7 @@ interface WorkflowState {
 ```
 
 **Connection validation rules** (enforced; return structured errors):
+
 1. No self-loops
 2. No duplicate edges
 3. Start nodes cannot be a target
@@ -142,13 +149,13 @@ interface WorkflowState {
 
 ## 5. Performance budget
 
-| Metric | Target | Verified in |
-|---|---|---|
-| Initial bundle (gzipped) | ≤ 200KB | Phase 9 |
-| Time to interactive (demo page) | ≤ 500ms | Phase 9 |
-| Drag frame rate (50 nodes) | 60fps | Phase 2/9 |
-| LLM perceived latency (simple request) | ≤ 3s | Phase 7 |
-| Memory leak across 100 add/remove cycles | None | Phase 9 |
+| Metric                                   | Target  | Verified in |
+| ---------------------------------------- | ------- | ----------- |
+| Initial bundle (gzipped)                 | ≤ 200KB | Phase 9     |
+| Time to interactive (demo page)          | ≤ 500ms | Phase 9     |
+| Drag frame rate (50 nodes)               | 60fps   | Phase 2/9   |
+| LLM perceived latency (simple request)   | ≤ 3s    | Phase 7     |
+| Memory leak across 100 add/remove cycles | None    | Phase 9     |
 
 Verification methodology: Chrome Performance tab + React Profiler. Numbers documented in `docs/performance.md` (Tier 2).
 
@@ -167,6 +174,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Goal:** All scaffolding, tooling, guardrails, and CI in place. No app code.
 
 **Tier 1 deliverables:**
+
 - Vite + React + TypeScript (strict) + Tailwind installed
 - Zustand + immer + zundo installed
 - ESLint with strict rules: `no-explicit-any`, `no-non-null-assertion`, `no-console`, `no-restricted-imports` (forbid bpmn-js, react-flow, redux)
@@ -184,6 +192,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - `docs/ai-workflow.md` and `docs/ai-prompts.md` skeletons
 
 **Definition of done:**
+
 - `make install && make test` runs and passes (no app code yet, but linters and config are exercised)
 - `make build` produces an empty-but-valid bundle
 - CI is green on first push
@@ -195,6 +204,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Estimated time:** 1.0h realistic, 1.5h bad-day
 
 **Commit sequence:**
+
 1. `chore: scaffold vite + react + ts`
 2. `chore(deps): add zustand, immer, zundo, tailwind`
 3. `chore(tooling): add eslint, prettier with strict rules`
@@ -211,6 +221,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Goal:** Three stores fully implemented with TDD. Store is the spec for the rest of the app.
 
 **Tier 1 deliverables:**
+
 - `src/state/workflow/types.ts` — Node, Edge, State types
 - `src/state/workflow/validators.ts` — `canConnect`, returns `{ ok: true } | { ok: false, reason: string }`
 - `src/state/workflow/slices/nodesSlice.ts` — addNode, updateNode, moveNode, removeNode (cascade-aware)
@@ -227,6 +238,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Coverage: ≥90% on `src/state/workflow/**`
 
 **Definition of done:**
+
 - All store tests green
 - All validators have tests for every rule (positive + negative cases)
 - `removeNode` cascade-deletes edges in both directions, tested
@@ -237,12 +249,14 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Self-review rubric passed (state-specific rubric items)
 
 **Tier 2 add-ons:**
+
 - Adversarial diff review (this is a Tier 1+ critical phase per ADR-014)
 - Selectors with memoization for derived data (reachable nodes, etc.)
 
 **Estimated time:** 1.5h realistic, 2.5h bad-day
 
 **Commit sequence (test commits separate from impl):**
+
 1. `test(store): add tests for node CRUD and validators`
 2. `feat(store): implement nodes slice`
 3. `test(store): add tests for edge CRUD and cascade`
@@ -259,6 +273,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Goal:** Visible, draggable nodes. No edges yet.
 
 **Tier 1 deliverables:**
+
 - `src/canvas/Canvas.tsx` — root container with pan via translate3d
 - `src/canvas/Node.tsx` — React.memo'd node component, subscribes per-id
 - `src/utils/geometry.ts` — coordinate transforms (screen ↔ world), with tests
@@ -275,6 +290,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Coverage on `src/utils/**`: ≥95%
 
 **Definition of done:**
+
 - All 12 node types (3 basic + 9 custom) visually distinct, polished
 - Drag is 60fps on 50 nodes (verified)
 - Selection works via mouse and keyboard
@@ -283,6 +299,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Self-review rubric passed (canvas-specific)
 
 **Tier 2 add-ons:**
+
 - Container queries with three breakpoints (compact / standard / spacious)
 - Touch pointer adaptation (`data-pointer="coarse"`, larger handles)
 - Animation: node appearance scale-fade (200ms, respects reduced-motion)
@@ -291,6 +308,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Estimated time:** 2.0h realistic, 3.0h bad-day
 
 **Commit sequence:**
+
 1. `feat(canvas): add canvas container with pan`
 2. `test(utils): add geometry and pointer hook tests`
 3. `feat(utils): add geometry helpers and rAF pointer hook`
@@ -306,6 +324,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Goal:** Build connected workflows visually.
 
 **Tier 1 deliverables:**
+
 - `src/canvas/Edge.tsx` — React.memo'd edge component, subscribes to source+target positions only
 - `src/canvas/ConnectionLayer.tsx` — SVG overlay layer
 - `src/canvas/GhostEdge.tsx` — in-progress connection rendering during drag
@@ -319,6 +338,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Validation errors during connection drag show toast or inline message
 
 **Definition of done:**
+
 - Drag-to-connect works smoothly with no dropped frames
 - Ghost edge follows cursor during drag
 - All four validation rules surface to UI when violated
@@ -327,12 +347,14 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Self-review rubric passed
 
 **Tier 2 add-ons:**
+
 - Animated edge appearance (stroke-dasharray reveal)
 - Edge hover state with thicker stroke
 
 **Estimated time:** 1.5h realistic, 2.5h bad-day
 
 **Commit sequence:**
+
 1. `test(canvas): add edge component tests`
 2. `feat(canvas): render edges with bezier paths`
 3. `feat(canvas): drag-to-connect with ghost edge`
@@ -346,6 +368,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Goal:** Add menu and import/export controls.
 
 **Tier 1 deliverables:**
+
 - `src/panels/Toolbar.tsx` — top bar layout
 - Add menu (dropdown): Start, End, Task divider, then 9 insurance custom nodes with icons
 - Import button: opens file picker, calls `importJSON`, shows toast on error
@@ -355,18 +378,21 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Component tests for Toolbar interactions
 
 **Definition of done:**
+
 - All 12 node types addable from menu
 - Import/export round-trip works for a multi-node workflow
 - Keyboard fully operates the toolbar
 - Self-review rubric passed
 
 **Tier 2 add-ons:**
+
 - Toast system for transient errors (used for import failures, validation errors)
 - Undo/redo buttons (leveraging temporal middleware)
 
 **Estimated time:** 0.75h realistic, 1.0h bad-day
 
 **Commit sequence:**
+
 1. `feat(panels): toolbar with add menu and io buttons`
 2. `feat(a11y): toolbar keyboard navigation and ARIA`
 
@@ -377,6 +403,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Goal:** Edit node label and variables.
 
 **Tier 1 deliverables:**
+
 - `src/panels/PropertiesPanel.tsx` — right-side panel (Tier 1) or bottom area (compact mode)
 - Shown when a node is selected; hidden otherwise
 - Label input: text field bound to `updateNode`
@@ -386,6 +413,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Component tests for variables editor (the trickiest UI in the app)
 
 **Definition of done:**
+
 - Selecting a node opens the panel; deselecting closes it
 - Label edits persist
 - Variables can be added, edited, deleted
@@ -394,12 +422,14 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Self-review rubric passed
 
 **Tier 2 add-ons:**
+
 - Bottom-drawer animation in compact mode
 - Form validation feedback (e.g., duplicate variable keys)
 
 **Estimated time:** 1.0h realistic, 1.5h bad-day
 
 **Commit sequence:**
+
 1. `test(panels): add properties panel and variables editor tests`
 2. `feat(panels): properties panel with label editing`
 3. `feat(panels): variables editor with type select`
@@ -412,6 +442,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Goal:** Natural language modifies the workflow end-to-end (testable via curl, no chat UI yet).
 
 **Tier 1 deliverables:**
+
 - `server/proxy.ts` — Hono server with one POST `/api/chat` endpoint
 - Reads `ANTHROPIC_API_KEY` from env, uses `@anthropic-ai/sdk`
 - Forwards request to Claude Sonnet 4.5 with tools and system prompt
@@ -428,6 +459,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - A debug button or curl recipe in README to test before chat UI exists
 
 **Definition of done:**
+
 - Test request via curl modifies the workflow as expected
 - All tool execution paths tested with MSW
 - Agent loop terminates cleanly (success, error, abort, iteration cap)
@@ -436,12 +468,14 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Adversarial diff review completed (this is a critical phase per ADR-014)
 
 **Tier 2 add-ons:**
+
 - Auto-layout for AI-added nodes (simple horizontal cascade based on existing positions)
 - Token cost logging in proxy logs
 
 **Estimated time:** 1.5h realistic, 2.5h bad-day
 
 **Commit sequence:**
+
 1. `test(llm): add tool executor and validator tests`
 2. `feat(llm): tool schemas and system prompt`
 3. `feat(llm): tool executor mapping to store actions`
@@ -457,6 +491,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Goal:** End-to-end natural language workflow editing through UI.
 
 **Tier 1 deliverables:**
+
 - `src/panels/ChatPanel.tsx` — floating bottom-right panel (Tier 1) or bottom-sheet (compact mode)
 - Message list rendering: user, assistant, system messages
 - Tool-call summaries inline ("✓ Added 3 nodes", "✓ Connected Verify Policy → Send Email")
@@ -469,6 +504,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Integration test: full happy-path with mocked LLM (chat input → tool calls → workflow modified → message rendered)
 
 **Definition of done:**
+
 - All three canonical insurance scenarios work end-to-end:
   - "Add steps for a denied claim due to policy expiration"
   - "What are the tasks needed to process a standard car accident claim?"
@@ -478,6 +514,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Self-review rubric passed
 
 **Tier 2 add-ons:**
+
 - Bottom-sheet animation in compact mode
 - Persisted chat history in localStorage (cleared on workflow reset)
 - Token usage shown in chat for transparency
@@ -485,6 +522,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Estimated time:** 1.0h realistic, 1.5h bad-day
 
 **Commit sequence:**
+
 1. `test(panels): add chat panel tests with mocked llm`
 2. `feat(panels): chat panel with message rendering`
 3. `feat(panels): chat input with cancel and error states`
@@ -498,6 +536,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Goal:** `<workflow-editor>` works embedded in any HTML page, supports multiple instances.
 
 **Tier 1 deliverables:**
+
 - `src/web-component/WorkflowEditorElement.ts` — extends HTMLElement
 - Shadow DOM with constructable stylesheets (Tailwind CSS imported via Vite `?inline` and adopted)
 - `connectedCallback`: create React root, mount App with a fresh store from `createWorkflowStore()`
@@ -513,6 +552,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Smoke test: WC mounts in jsdom, fires connected/disconnected callbacks, multi-instance test (two elements, independent state)
 
 **Definition of done:**
+
 - demo.html opens in a browser and works without React or any build step on the host page
 - Two `<workflow-editor>` elements on demo.html have independent state (verified)
 - Public API exercised in demo.html buttons
@@ -522,6 +562,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Adversarial diff review completed (critical phase per ADR-014)
 
 **Tier 2 add-ons:**
+
 - Resizable splitter on demo.html showing live reflow
 - Two side-by-side editors at different widths on demo.html
 - WC-level accessibility verified (ARIA works across shadow DOM boundary)
@@ -530,6 +571,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Estimated time:** 1.5h realistic, 3.0h bad-day
 
 **Commit sequence:**
+
 1. `feat(wc): web component class with shadow dom`
 2. `feat(wc): mount react app with per-instance store`
 3. `feat(wc): public api - attributes, properties, events`
@@ -545,6 +587,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Goal:** Release-ready v1.
 
 **Tier 1 deliverables:**
+
 - `Dockerfile`: multi-stage, builds proxy + serves static bundle
 - `docker-compose.yml` (or single Dockerfile): proxy + static server in one command
 - `make up` runs everything cleanly from a fresh clone
@@ -575,6 +618,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Final commit hygiene: clean log, no fixup commits, all conventional
 
 **Definition of done:**
+
 - Anyone can `git clone`, `make up`, open URL, use editor and chat — verified
 - All Tier 1 items from prior phases ship
 - Docs cross-linked and consistent
@@ -582,6 +626,7 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - Self-review rubric passed
 
 **Tier 2 add-ons:**
+
 - `docs/accessibility.md` (keyboard map, SR notes, WCAG conformance summary)
 - `docs/performance.md` (budget, achieved numbers, methodology)
 - `docs/security.md` (threat model, mitigations, gaps)
@@ -594,12 +639,51 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 **Estimated time:** 1.5h realistic, 2.5h bad-day
 
 **Commit sequence:**
+
 1. `chore(infra): add Dockerfile and docker-compose`
 2. `docs: finalize README with quick start and architecture`
 3. `docs: finalize decisions.md with all ADRs`
 4. `docs: finalize ai-workflow.md with examples`
 5. `docs: finalize ai-prompts.md with transcripts`
 6. `chore: final cleanup for v1 release`
+
+---
+
+### Phase 10 — Vercel deployment
+
+**Goal:** The demo page live on a Vercel URL, chat working end-to-end, API key server-side only.
+
+**Tier 1 deliverables:**
+
+- `api/chat.ts`: Vercel serverless entry — builds the Anthropic client and logger from `process.env`, calls `createApp()` (no `staticRoot`; the CDN serves static files), exports `handle(app)` via Hono's `hono/vercel` adapter. `server/proxy.ts`, Docker, and local dev remain untouched.
+- `vercel.json`: build command runs `npm run build:wc` and stages `dist-vercel/` (demo.html copied as `index.html`, `dist-wc/` alongside so the relative script path keeps working); `outputDirectory: dist-vercel`; `maxDuration` raised on `api/chat.ts` (the agent loop makes up to 5 sequential model calls — the 10s default would cut real chats off).
+- `demo.html`: `api-endpoint` changed from `http://localhost:3001/api/chat` to same-origin `/api/chat`; header blurb reworded. Improves the Docker image too (already same-origin).
+- `.gitignore`: `dist-vercel/` added.
+- README: "Deploy to Vercel" section — import repo, set `ANTHROPIC_API_KEY`, enable Deployment Protection (Vercel Authentication), push to main.
+- One-time dashboard setup (user-performed, documented not scripted): import `husnukirci/floweave`, framework preset "Other", env var, protection toggle.
+
+**Definition of done:**
+
+- Preview or production deploy verified: page loads, chat round-trip completes, `/api/chat` returns structured errors on bad input
+- `ANTHROPIC_API_KEY` absent from the client bundle (grep post-build, per ADR-021)
+- Deployment protection enabled and verified (unauthenticated request blocked)
+- Push to `main` auto-deploys; PRs get preview deploys; CI stays the merge gate
+- Self-review rubric passed
+
+**Tier 2 add-ons:**
+
+- Custom domain
+- Rate limiting in the Hono app (narrows ADR-021's known gap for the public deployment)
+
+**Estimated time:** 1h realistic, 2h bad-day
+
+**Commit sequence:**
+
+1. `docs: add phase 10 vercel deployment plan and ADR-024`
+2. `feat(server): add vercel serverless entry for the llm proxy`
+3. `chore(infra): add vercel build config and output staging`
+4. `fix(demo): use same-origin api endpoint in demo page`
+5. `docs: add vercel deployment section to README`
 
 ---
 
@@ -624,16 +708,16 @@ None of these are required. Each is "nice if shipped, invisible if absent."
 
 Risks identified upfront with mitigations:
 
-| Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|
-| Tailwind + Shadow DOM friction | High | High | Vite `?inline` CSS pattern; constructable stylesheets; documented fallback to light DOM with reasoning |
-| Drag-to-connect math edge cases | Medium | Medium | Pointer capture, escape-cancels, comprehensive component tests |
-| LLM tool-use returning malformed input | Medium | Medium | Validate tool inputs before applying; structured errors back to LLM as tool_results |
-| Agent loop runaway | Low | High | Hard 5-iteration cap with surfaced error |
-| Multi-instance state leakage | Medium | High | Store factory from day one; multi-instance smoke test in Phase 8 |
-| Performance degradation at 50+ nodes | Low | Medium | Selector isolation by design; React Profiler verification in Phase 9 |
-| Time overrun | High | Medium | Tier 1/2/3 cut list; checkpoint at hours 4, 8, 11 |
-| Shadow DOM portal issues (toasts, modals) | Medium | Low | Render portal targets inside shadow root; document |
+| Risk                                      | Likelihood | Impact | Mitigation                                                                                             |
+| ----------------------------------------- | ---------- | ------ | ------------------------------------------------------------------------------------------------------ |
+| Tailwind + Shadow DOM friction            | High       | High   | Vite `?inline` CSS pattern; constructable stylesheets; documented fallback to light DOM with reasoning |
+| Drag-to-connect math edge cases           | Medium     | Medium | Pointer capture, escape-cancels, comprehensive component tests                                         |
+| LLM tool-use returning malformed input    | Medium     | Medium | Validate tool inputs before applying; structured errors back to LLM as tool_results                    |
+| Agent loop runaway                        | Low        | High   | Hard 5-iteration cap with surfaced error                                                               |
+| Multi-instance state leakage              | Medium     | High   | Store factory from day one; multi-instance smoke test in Phase 8                                       |
+| Performance degradation at 50+ nodes      | Low        | Medium | Selector isolation by design; React Profiler verification in Phase 9                                   |
+| Time overrun                              | High       | Medium | Tier 1/2/3 cut list; checkpoint at hours 4, 8, 11                                                      |
+| Shadow DOM portal issues (toasts, modals) | Medium     | Low    | Render portal targets inside shadow root; document                                                     |
 
 ---
 
@@ -657,18 +741,19 @@ State these in the README under "Scope":
 
 ## 10. Documentation obligations per phase
 
-| Phase | Doc obligation |
-|---|---|
-| 0 | PLAN.md, CLAUDE.md, decisions.md skeleton, README stub committed |
-| 1 | ADRs 002, 003, 010, 012 finalized |
-| 2 | ADR 004 finalized |
-| 3 | ADR 005 finalized |
-| 4 | (none) |
-| 5 | (none) |
-| 6 | ADRs 008, 009, 010, 021 finalized; ai-prompts.md initial draft |
-| 7 | ADR 010 polish; ai-prompts.md transcripts added |
-| 8 | ADRs 001, 007, 018, 019, 020 finalized; api.md (Tier 1 minimum) |
-| 9 | All remaining ADRs finalized; ai-workflow.md complete; README finalized; performance/accessibility/security docs (Tier 2) |
+| Phase | Doc obligation                                                                                                            |
+| ----- | ------------------------------------------------------------------------------------------------------------------------- |
+| 0     | PLAN.md, CLAUDE.md, decisions.md skeleton, README stub committed                                                          |
+| 1     | ADRs 002, 003, 010, 012 finalized                                                                                         |
+| 2     | ADR 004 finalized                                                                                                         |
+| 3     | ADR 005 finalized                                                                                                         |
+| 4     | (none)                                                                                                                    |
+| 5     | (none)                                                                                                                    |
+| 6     | ADRs 008, 009, 010, 021 finalized; ai-prompts.md initial draft                                                            |
+| 7     | ADR 010 polish; ai-prompts.md transcripts added                                                                           |
+| 8     | ADRs 001, 007, 018, 019, 020 finalized; api.md (Tier 1 minimum)                                                           |
+| 9     | All remaining ADRs finalized; ai-workflow.md complete; README finalized; performance/accessibility/security docs (Tier 2) |
+| 10    | ADR-024 finalized; README deploy section                                                                                  |
 
 ---
 
@@ -691,12 +776,12 @@ Tier 2 add-on: full reports stored in `docs/self-reviews/phase-N.md`.
 
 ## 12. Time discipline
 
-| Hour | Checkpoint |
-|---|---|
-| 4 | End of Phase 2: store + canvas + drag working. If behind, drop Tier 3 entirely. |
-| 8 | End of Phase 6: LLM working end-to-end via curl. If behind, start cutting Tier 2 from the bottom. |
-| 11 | Stop building features. Whatever's done is done. Polish, document, ship. |
-| 14 | Hard ceiling. Submit what you have. |
+| Hour | Checkpoint                                                                                        |
+| ---- | ------------------------------------------------------------------------------------------------- |
+| 4    | End of Phase 2: store + canvas + drag working. If behind, drop Tier 3 entirely.                   |
+| 8    | End of Phase 6: LLM working end-to-end via curl. If behind, start cutting Tier 2 from the bottom. |
+| 11   | Stop building features. Whatever's done is done. Polish, document, ship.                          |
+| 14   | Hard ceiling. Submit what you have.                                                               |
 
 Cut order if behind, in priority sequence:
 
