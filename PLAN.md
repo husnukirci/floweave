@@ -659,14 +659,14 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 - `vercel.json`: build command runs `npm run build:wc` and stages `dist-vercel/` (demo.html copied as `index.html`, `dist-wc/` alongside so the relative script path keeps working); `outputDirectory: dist-vercel`; `maxDuration` raised on `api/chat.ts` (the agent loop makes up to 5 sequential model calls — the 10s default would cut real chats off).
 - `demo.html`: `api-endpoint` changed from `http://localhost:3001/api/chat` to same-origin `/api/chat`; header blurb reworded. Improves the Docker image too (already same-origin).
 - `.gitignore`: `dist-vercel/` added.
-- README: "Deploy to Vercel" section — import repo, set `ANTHROPIC_API_KEY`, enable Deployment Protection (Vercel Authentication), push to main.
-- One-time dashboard setup (user-performed, documented not scripted): import `husnukirci/floweave`, framework preset "Other", env var, protection toggle.
+- README: "Deploy to Vercel" section — import repo, set `ANTHROPIC_API_KEY`, bound abuse exposure (Deployment Protection or provider spend cap, per ADR-024 as amended), push to main.
+- One-time dashboard setup (user-performed, documented not scripted): import `husnukirci/floweave`, framework preset "Other", env var, abuse-exposure choice.
 
 **Definition of done:**
 
 - Preview or production deploy verified: page loads, chat round-trip completes, `/api/chat` returns structured errors on bad input
 - `ANTHROPIC_API_KEY` absent from the client bundle (grep post-build, per ADR-021)
-- Deployment protection enabled and verified (unauthenticated request blocked)
+- Abuse exposure bounded: deployment protection enabled, or open deployment accepted with a provider-side spend cap (ADR-024 amendment)
 - Push to `main` auto-deploys; PRs get preview deploys; CI stays the merge gate
 - Self-review rubric passed
 
