@@ -5,6 +5,7 @@
 // Keyboard navigation (arrow keys, Escape, Tab) lands in commit 2 along
 // with full ARIA role mapping per CLAUDE.md §4 accessibility invariant.
 
+import clsx from 'clsx';
 import {
   ChevronDown,
   Download,
@@ -34,6 +35,15 @@ const BASIC_KINDS: readonly { kind: BasicKind; label: string }[] = [
   { kind: 'task', label: 'Task' },
   { kind: 'end', label: 'End' },
 ];
+
+// Solid {kind}-900 fill — the same colour Handle paints its connection
+// dot with (bg-current inheriting text-{kind}-900). The chip is a 1:1
+// match for the dot that will appear on the rendered node.
+const BASIC_KIND_DOT_CLASS: Record<BasicKind, string> = {
+  start: 'bg-emerald-900',
+  task: 'bg-blue-900',
+  end: 'bg-rose-900',
+};
 
 const NODE_HALF_WIDTH = 70;
 const NODE_HALF_HEIGHT = 28;
@@ -351,7 +361,10 @@ function AddMenu({ onAddBasic, onAddCustom, onKeyDown, itemRefs }: AddMenuProps)
               onAddBasic(kind);
             }}
           >
-            <span className="inline-block h-3 w-3 rounded-full bg-neutral-300" aria-hidden />
+            <span
+              className={clsx('inline-block h-3 w-3 rounded-full', BASIC_KIND_DOT_CLASS[kind])}
+              aria-hidden
+            />
             {label}
           </MenuItem>
         ))}
