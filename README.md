@@ -64,7 +64,7 @@ State is split across three Zustand stores ([ADR-003](./docs/decisions.md)): **w
 
 The chat panel POSTs to `/api/chat` on the same origin. The Hono proxy holds the Anthropic API key (server-only — [ADR-008](./docs/decisions.md)) and forwards tool-use round-trips through an iteration-capped agent loop ([ADR-010](./docs/decisions.md)). Tool inputs are validated before being applied; failures return as structured `tool_results` so the LLM can recover within the cap.
 
-Full reasoning behind each load-bearing choice lives in [docs/decisions.md](./docs/decisions.md) (24 ADRs in Michael Nygard format).
+Full reasoning behind each load-bearing choice lives in [docs/decisions.md](./docs/decisions.md) (25 ADRs in Michael Nygard format).
 
 ## Tech choices
 

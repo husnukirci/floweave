@@ -687,6 +687,44 @@ For each phase, **Tier 1** items are required to complete the phase. **Tier 2** 
 
 ---
 
+### Phase 11 — Chat panel presentation
+
+**Goal:** The chat panel reads as a floating tool above the canvas, and assistant markdown renders as formatted content instead of raw syntax.
+
+**Tier 1 deliverables:**
+
+- ChatPanel elevation: `shadow-xl` + `ring-1 ring-black/5`, border stepped to `border-neutral-300`, tinted header (`bg-neutral-50`). Class-only; no layout or behavior change.
+- `src/panels/ChatMarkdown.tsx`: memoized markdown renderer for assistant messages — `react-markdown` + `remark-gfm` with a components map tuned to the 384px panel (compact headings/lists, tables scroll inside an `overflow-x-auto` wrapper, inline/block code, `<hr>` as subtle divider, links `target="_blank" rel="noopener noreferrer"`). Renders React elements — no `innerHTML`; raw HTML in content is ignored by default (ADR-025).
+- User messages gain `whitespace-pre-wrap` (stay plain text); system messages unchanged.
+- System prompt response-style guideline: replies render in a narrow chat panel — keep them short, prefer sentences and compact bullet lists, avoid wide tables and decorative headings/rules. Test-first (src/llm is a TDD layer).
+- Dependencies: `react-markdown`, `remark-gfm` (approved; justified in ADR-025).
+- Tests: `ChatMarkdown.test.tsx` (bold/list/table render, raw HTML does not become elements, link attrs hardened), `ChatPanel.test.tsx` updates (assistant renders through ChatMarkdown, user line breaks survive).
+
+**Definition of done:**
+
+- A markdown-heavy reply (headings, tables, bold, rules) renders formatted; wide tables scroll within the bubble instead of blowing out the panel
+- No `dangerouslySetInnerHTML` introduced (grep)
+- WC bundle stays ≤250KB gzipped (ADR-022) — measured post-build
+- Coverage thresholds still pass (src/llm 90%)
+- Self-review rubric passed
+
+**Tier 2 add-ons:**
+
+- Syntax highlighting for code blocks
+- Copy-message button
+
+**Estimated time:** 1.5h realistic, 2.5h bad-day
+
+**Commit sequence:**
+
+1. `docs: add phase 11 chat presentation plan and ADR-025`
+2. `test(llm): cover response-style guideline in system prompt`
+3. `feat(llm): add narrow-panel response-style guideline to system prompt`
+4. `feat(panels): render assistant messages as markdown`
+5. `fix(panels): strengthen chat panel elevation`
+
+---
+
 ## 7. Tier 3 (stretch) appendix
 
 Pursue only if Phase 9 finishes with substantial time remaining. Listed in priority order:
@@ -754,6 +792,7 @@ State these in the README under "Scope":
 | 8     | ADRs 001, 007, 018, 019, 020 finalized; api.md (Tier 1 minimum)                                                           |
 | 9     | All remaining ADRs finalized; ai-workflow.md complete; README finalized; performance/accessibility/security docs (Tier 2) |
 | 10    | ADR-024 finalized; README deploy section                                                                                  |
+| 11    | ADR-025 finalized                                                                                                         |
 
 ---
 

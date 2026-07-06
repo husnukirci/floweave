@@ -779,6 +779,37 @@ Static CDN + one serverless function:
 
 ---
 
+### ADR-025 — Markdown rendering in chat
+
+**Status:** Accepted
+**Date:** 2026-07-06
+
+#### Context
+
+Assistant replies come back as markdown — the model naturally formats with headings, tables, bold, and horizontal rules. The chat panel rendered `message.content` as a plain `<p>`, which collapsed newlines and displayed raw syntax; a rich reply degraded into an unreadable run-on string. Constraints: `dangerouslySetInnerHTML` is forbidden (ADR-021, CLAUDE.md hard rule), the panel is 384px wide, and the WC bundle has a 250KB gzipped budget (ADR-022).
+
+#### Decision
+
+Two-sided fix — render what arrives, and steer what gets generated:
+
+- **Rendering**: `react-markdown` + `remark-gfm`, wrapped in a memoized `ChatMarkdown` component used for assistant messages only. It renders to React elements (no `innerHTML` anywhere) and ignores raw HTML in the content by default, so LLM output has no markup-injection surface. A `components` map tunes output to the narrow panel: compact headings and lists, tables scrolling inside an `overflow-x-auto` wrapper, links forced to `target="_blank" rel="noopener noreferrer"`.
+- **Steering**: a system-prompt response-style guideline — replies render in a narrow chat panel; keep them short, prefer sentences and compact bullet lists, avoid wide tables and decorative headings. The renderer is the safety net; the guideline attacks the root cause (a screen-wide table is a bad reply for this surface even when rendered perfectly).
+- User messages stay plain text with `whitespace-pre-wrap`; system error messages are unchanged.
+
+#### Consequences
+
+- Two new runtime dependencies (~35KB gzipped estimated); WC bundle measured against the ADR-022 budget in the phase's definition of done.
+- Markdown structure (headings, tables) reaches assistive tech as real semantics, not symbol soup — an a11y improvement over the raw string.
+- The components map is the single place chat typography lives; future styling changes don't touch message logic.
+
+#### Alternatives considered
+
+- **Prompt-only (forbid markdown)**: zero dependencies, but models leak markdown regardless; stray `**` and `#` artifacts would keep appearing. Kept as the steering half, rejected as the whole fix.
+- **Hand-rolled subset renderer**: no dependencies but bespoke parser code to test and maintain, and tables — the worst offender — would still degrade.
+- **`marked` (or similar) + sanitizer**: HTML-string pipeline requires `dangerouslySetInnerHTML`, violating a hard rule. Rejected outright.
+
+---
+
 ## Index by topic
 
 **Architecture**: ADR-001, 003, 004, 007, 019, 020
@@ -790,6 +821,7 @@ Static CDN + one serverless function:
 **Error handling**: ADR-017
 **Public API**: ADR-018
 **Deployment**: ADR-024
+**Chat presentation**: ADR-025
 
 ---
 
