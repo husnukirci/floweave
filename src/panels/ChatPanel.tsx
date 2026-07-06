@@ -51,9 +51,9 @@ export function ChatPanel(): JSX.Element {
       ref={asideRef}
       aria-label="Chat"
       data-testid="chat-panel"
-      className="fixed bottom-4 right-4 flex max-h-[60vh] w-96 flex-col rounded-lg border border-neutral-200 bg-white shadow-lg"
+      className="fixed bottom-4 right-4 flex max-h-[60vh] w-96 flex-col rounded-lg border border-neutral-300 bg-white shadow-xl ring-1 ring-black/5"
     >
-      <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+      <header className="flex items-center justify-between rounded-t-lg border-b border-neutral-200 bg-neutral-50 px-4 py-3">
         <h2 className="text-sm font-semibold text-neutral-900">Chat</h2>
         <button
           type="button"
