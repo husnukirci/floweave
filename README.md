@@ -32,6 +32,16 @@ make dev                   # Vite SPA on :5173 in another terminal
 
 `make help` lists every target.
 
+## Deploy to Vercel
+
+The repo deploys to Vercel as a static demo page plus one serverless function ([ADR-024](./docs/decisions.md)): `vercel.json` builds the WC bundle and stages `demo.html` as the index, and `api/chat.ts` wraps the same Hono app factory the Docker image runs (`hono/vercel` adapter — `server/proxy.ts` is untouched). One-time setup:
+
+1. [Import the repository](https://vercel.com/new) into Vercel; keep the detected settings (framework "Other" — `vercel.json` drives the build).
+2. Set the `ANTHROPIC_API_KEY` environment variable in the project settings (optionally `ANTHROPIC_MODEL` to override the default model).
+3. Enable **Settings → Deployment Protection → Vercel Authentication**. A public `/api/chat` spends real API credits; protection keeps the demo gated, and [shareable links](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/sharable-links) grant access deliberately.
+
+Every push to `main` then deploys production; pull requests get protected preview deploys. GitHub Actions CI remains the merge gate. Note `/healthz` is a local/Docker concern — only `api/` files become functions on Vercel.
+
 ## Architecture
 
 ```mermaid
@@ -54,7 +64,7 @@ State is split across three Zustand stores ([ADR-003](./docs/decisions.md)): **w
 
 The chat panel POSTs to `/api/chat` on the same origin. The Hono proxy holds the Anthropic API key (server-only — [ADR-008](./docs/decisions.md)) and forwards tool-use round-trips through an iteration-capped agent loop ([ADR-010](./docs/decisions.md)). Tool inputs are validated before being applied; failures return as structured `tool_results` so the LLM can recover within the cap.
 
-Full reasoning behind each load-bearing choice lives in [docs/decisions.md](./docs/decisions.md) (23 ADRs in Michael Nygard format).
+Full reasoning behind each load-bearing choice lives in [docs/decisions.md](./docs/decisions.md) (24 ADRs in Michael Nygard format).
 
 ## Tech choices
 

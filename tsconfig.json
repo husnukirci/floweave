@@ -4,5 +4,26 @@
     { "path": "./tsconfig.app.json" },
     { "path": "./tsconfig.node.json" },
     { "path": "./tsconfig.server.json" }
-  ]
+  ],
+  // Repo gates (tsc -b) use the referenced projects above and never read
+  // these options. They exist for Vercel's function builder, which
+  // type-checks api/chat.ts against this root tsconfig and would
+  // otherwise fall back to compiler defaults (no .ts-extension imports,
+  // weaker narrowing). Mirrors tsconfig.server.json.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "erasableSyntaxOnly": true
+  }
 }

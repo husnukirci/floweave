@@ -151,17 +151,14 @@
       <header>
         <h1>floweave</h1>
         <span class="subtitle">
-          &lt;workflow-editor&gt; demo · loads dist-wc/workflow-editor.js · expects the LLM proxy on
-          http://localhost:3001
+          &lt;workflow-editor&gt; demo · loads dist-wc/workflow-editor.js · expects the LLM proxy at
+          /api/chat on the same origin
         </span>
       </header>
 
       <div class="stage">
         <div class="editor-wrap">
-          <workflow-editor
-            id="editor"
-            api-endpoint="http://localhost:3001/api/chat"
-          ></workflow-editor>
+          <workflow-editor id="editor" api-endpoint="/api/chat"></workflow-editor>
         </div>
 
         <aside class="controls">

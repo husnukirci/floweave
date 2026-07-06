@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "npm run build:wc && mkdir -p dist-vercel/dist-wc && cp demo.html dist-vercel/index.html && cp dist-wc/* dist-vercel/dist-wc/",
+  "outputDirectory": "dist-vercel",
+  "functions": {
+    "api/chat.ts": {
+      "maxDuration": 60
+    }
+  }
+}
