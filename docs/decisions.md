@@ -745,12 +745,12 @@ Tier 1 minimum: editor works at any container ≥600px width with reasonable ref
 
 ### ADR-024 — Vercel deployment architecture
 
-**Status:** Accepted
+**Status:** Accepted (amended 2026-07-06: abuse control)
 **Date:** 2026-07-06
 
 #### Context
 
-v1 ships a Docker image (Phase 9) that runs the Hono proxy and serves the demo from one origin — right for self-hosting, but there is no public URL to share. Vercel offers free static hosting plus serverless functions with GitHub integration (push-to-deploy, preview deploys per PR). Two constraints shape the design: Vercel does not run long-lived Node processes (`server/proxy.ts`'s `serve()` model doesn't apply), and a public `/api/chat` spends real Anthropic credits, so the deployment cannot be fully open (ADR-021 lists "no proxy authentication" as a known gap).
+v1 ships a Docker image (Phase 9) that runs the Hono proxy and serves the demo from one origin — right for self-hosting, but there is no public URL to share. Vercel offers free static hosting plus serverless functions with GitHub integration (push-to-deploy, preview deploys per PR). Two constraints shape the design: Vercel does not run long-lived Node processes (`server/proxy.ts`'s `serve()` model doesn't apply), and a public `/api/chat` spends real Anthropic credits, so exposure must be bounded (ADR-021 lists "no proxy authentication" as a known gap).
 
 #### Decision
 
@@ -759,14 +759,14 @@ Static CDN + one serverless function:
 - **Static**: `demo.html` (as `index.html`) and the WC bundle are served by Vercel's CDN from a staged `dist-vercel/` output directory. Same-origin with the API — no CORS.
 - **API**: `api/chat.ts` wraps the existing `createApp()` factory with Hono's `hono/vercel` adapter. The factory pattern means the serverless entry is a composition root, not a rewrite — `proxy.ts` stays for local dev and Docker.
 - **`maxDuration` raised** on the function: the agent loop caps at 5 iterations (ADR-010) and each iteration is a model call; the 10s Node function default would truncate legitimate chats.
-- **Abuse control**: Vercel Deployment Protection (Vercel Authentication, free tier) gates the whole deployment; access shared deliberately via Vercel shareable links. This is platform-level compensation for ADR-021's no-auth gap, not an application change.
+- **Abuse control** (amended at deploy time): the production deployment runs open; exposure is bounded by a hard spend limit on the Anthropic account rather than gated at the platform. The URL is not advertised, so worst-case abuse is capped at the spend limit. Vercel Deployment Protection (Vercel Authentication, free tier) remains the recommended toggle for deployments that need gating — no application change either way.
 - **`demo.html` uses a relative `/api/chat` endpoint** — correct on Vercel, in Docker, and behind the Vite dev proxy alike.
 
 `/healthz` is not exposed on Vercel (only `api/` files become functions); it remains a local/Docker concern.
 
 #### Consequences
 
-- Push to `main` deploys production; PRs get protected preview deploys. GitHub Actions CI remains the merge gate (deploys are not gated on CI — Vercel builds independently).
+- Push to `main` deploys production; PRs get preview deploys. GitHub Actions CI remains the merge gate (deploys are not gated on CI — Vercel builds independently).
 - Cold starts apply to the first chat request after idle; acceptable for a demo.
 - The Anthropic key lives only in Vercel project env vars, consistent with ADR-008.
 - The repo gains a platform-specific entry (`api/chat.ts`) and config (`vercel.json`) — small and isolated; no runtime dependency added (`hono/vercel` ships inside `hono`).
@@ -775,7 +775,7 @@ Static CDN + one serverless function:
 
 - **Single function serves everything** (closest to the Docker image, `serveStatic` included): every static asset request pays a function invocation and cold start; not how Vercel serves static content. Rejected.
 - **Static on Vercel, API hosted elsewhere** (e.g. the Docker image on a VPS): splits origins (CORS), and requires running a server anyway — defeats the point of the free platform. Rejected.
-- **Fully open deployment**: relies solely on Anthropic spend limits; anyone with the URL can spend credits. Rejected in favour of platform-level protection.
+- **Fully open deployment**: relies solely on Anthropic spend limits; anyone with the URL can spend credits. Rejected in the original design in favour of platform-level protection — then adopted at deploy time with a hard spend cap in place, which bounds the risk the rejection assumed was unbounded. The amendment is recorded rather than rewritten so the trade-off stays visible.
 
 ---
 

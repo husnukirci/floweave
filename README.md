@@ -38,7 +38,7 @@ The repo deploys to Vercel as a static demo page plus one serverless function ([
 
 1. [Import the repository](https://vercel.com/new) into Vercel; keep the detected settings (framework "Other" — `vercel.json` drives the build).
 2. Set the `ANTHROPIC_API_KEY` environment variable in the project settings (optionally `ANTHROPIC_MODEL` to override the default model).
-3. Enable **Settings → Deployment Protection → Vercel Authentication**. A public `/api/chat` spends real API credits; protection keeps the demo gated, and [shareable links](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/sharable-links) grant access deliberately.
+3. Bound the abuse exposure: a public `/api/chat` spends real API credits. Either enable **Settings → Deployment Protection → Vercel Authentication** with scope "All Deployments" (gates the demo; [shareable links](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/sharable-links) grant access deliberately), or run open with a hard spend limit set in the Anthropic console — the reference deployment does the latter ([ADR-024](./docs/decisions.md), amended).
 
 Every push to `main` then deploys production; pull requests get protected preview deploys. GitHub Actions CI remains the merge gate. Note `/healthz` is a local/Docker concern — only `api/` files become functions on Vercel.
 
