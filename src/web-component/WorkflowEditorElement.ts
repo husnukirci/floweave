@@ -18,6 +18,8 @@ import { StoresProvider } from '@/state/StoresProvider';
 import type { AddNodeInput, StoreError, WorkflowState } from '@/state/workflow/types';
 import tailwindCss from '@/styles/globals.css?inline';
 
+import { adoptPropertyRulesIntoDocument } from './propertyRules';
+
 const TAILWIND_STYLESHEET = new CSSStyleSheet();
 TAILWIND_STYLESHEET.replaceSync(tailwindCss);
 
@@ -47,6 +49,11 @@ export class WorkflowEditorElement extends HTMLElement {
     super();
     const shadow = this.attachShadow({ mode: 'open' });
     shadow.adoptedStyleSheets = [TAILWIND_STYLESHEET];
+    // @property rules are ignored inside shadow-root-adopted sheets, so
+    // Tailwind's --tw-* initial values (border-style, ring/shadow
+    // stacks) must be registered at document level or every border,
+    // shadow, and ring in the editor renders as none (ADR-007 note).
+    adoptPropertyRulesIntoDocument(tailwindCss);
     this.mountPoint = document.createElement('div');
     // Mirror the SPA's outer wrapper so the editor fills its host box.
     this.mountPoint.style.height = '100%';
