@@ -65,6 +65,35 @@ describe('ChatPanel', () => {
     expect(screen.getByText('Added the Verify Policy step.')).toBeInTheDocument();
   });
 
+  it('renders assistant markdown as formatted content, not raw syntax', () => {
+    chatStore.getState().addMessage({
+      id: 'm1',
+      role: 'assistant',
+      content: 'Added **Verify Policy**:\n\n- checks expiry\n- checks exclusions',
+      timestamp: Date.now(),
+    });
+
+    renderPanel();
+
+    expect(screen.getByText('Verify Policy').tagName).toBe('STRONG');
+    expect(screen.getByText('checks expiry').closest('li')).not.toBeNull();
+    // The raw markers must not leak into the rendered text.
+    expect(screen.queryByText(/\*\*/)).not.toBeInTheDocument();
+  });
+
+  it('preserves line breaks in user messages', () => {
+    chatStore.getState().addMessage({
+      id: 'm1',
+      role: 'user',
+      content: 'line one\nline two',
+      timestamp: Date.now(),
+    });
+
+    renderPanel();
+
+    expect(screen.getByText(/line one/)).toHaveClass('whitespace-pre-wrap');
+  });
+
   it('renders tool-call summaries with success markers under the assistant message', () => {
     chatStore.getState().addMessage({
       id: 'm1',

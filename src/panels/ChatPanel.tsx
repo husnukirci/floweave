@@ -16,6 +16,8 @@ import { useShallow } from 'zustand/react/shallow';
 import type { ChatMessage } from '@/state/chat/chatStore';
 import { useChatStore, useUiStoreApi } from '@/state/StoresProvider';
 
+import { ChatMarkdown } from './ChatMarkdown';
+
 export function ChatPanel(): JSX.Element {
   const messages = useChatStore(useShallow((s) => s.messages));
   const status = useChatStore((s) => s.status);
@@ -188,7 +190,7 @@ function MessageItem({ message }: { message: ChatMessage }): JSX.Element {
     return (
       <li className="flex flex-col items-end gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-neutral-500">You</span>
-        <p className="max-w-[85%] rounded bg-blue-50 px-3 py-2 text-sm text-neutral-900">
+        <p className="max-w-[85%] whitespace-pre-wrap rounded bg-blue-50 px-3 py-2 text-sm text-neutral-900">
           {message.content}
         </p>
       </li>
@@ -201,9 +203,9 @@ function MessageItem({ message }: { message: ChatMessage }): JSX.Element {
       <span className="text-xs font-medium uppercase tracking-wide text-neutral-500">
         Assistant
       </span>
-      <p className="max-w-[85%] rounded bg-neutral-100 px-3 py-2 text-sm text-neutral-900">
-        {message.content}
-      </p>
+      <div className="max-w-[85%] rounded bg-neutral-100 px-3 py-2 text-sm text-neutral-900">
+        <ChatMarkdown content={message.content} />
+      </div>
       {message.toolCalls && message.toolCalls.length > 0 ? (
         <ul className="mt-1 flex flex-col gap-0.5 pl-2">
           {message.toolCalls.map((tc, index) => (
