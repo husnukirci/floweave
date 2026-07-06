@@ -41,6 +41,13 @@ describe('buildSystemPrompt', () => {
     expect(prompt.toLowerCase()).toContain('end nodes cannot have outgoing');
   });
 
+  it('includes the narrow-panel response-style guideline', () => {
+    const prompt = buildSystemPrompt(buildWorkflow());
+
+    expect(prompt.toLowerCase()).toContain('narrow chat panel');
+    expect(prompt.toLowerCase()).toContain('avoid wide tables');
+  });
+
   it('lists the 9 insurance custom node types', () => {
     const prompt = buildSystemPrompt(buildWorkflow());
 

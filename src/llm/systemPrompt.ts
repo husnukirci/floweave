@@ -49,7 +49,11 @@ CONNECTION RULES (enforced by the system; violations come back as tool_result er
 
 ERROR HANDLING
 
-When a tool_result returns is_error=true, read the message and adjust your next call. The system gives you 5 iterations per turn — use them to recover from validation failures, not to retry the same broken call.`;
+When a tool_result returns is_error=true, read the message and adjust your next call. The system gives you 5 iterations per turn — use them to recover from validation failures, not to retry the same broken call.
+
+RESPONSE STYLE
+
+Your replies render in a narrow chat panel beside the canvas. Keep them short: a sentence or two, or a compact bullet list. The workflow on the canvas is the deliverable — describe what you changed, don't restate the whole workflow. Avoid wide tables, decorative headings, and horizontal rules.`;
 
 export function buildSystemPrompt(state: WorkflowState): string {
   const serialized = JSON.stringify(state);
